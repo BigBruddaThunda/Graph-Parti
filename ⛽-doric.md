@@ -6,7 +6,7 @@
 
 ---
 
-## ⛽🏛🧈🔵 Structural Constraints District
+## ⛽📍🏛🧈➕🔵 Structural Constraints District
 
 Rules governing the physical structure of the canvas and its contents.
 
@@ -134,7 +134,7 @@ interface LayerCollisionRules {
 
 ---
 
-## ⛽🔨🧈🔵 Input Validation District
+## ⛽📍🔨🧈➕🔵 Input Validation District
 
 ### ⛽🔨📍🔵 - Paste Detection.parti
 
@@ -235,7 +235,7 @@ function validateBlock(block: Block): ValidationResult {
 
 ---
 
-## ⛽🦉🧈🔵 SCL Syntax Validation District
+## ⛽📍🦉🧈➕🔵 SCL Syntax Validation District
 
 ### ⛽🦉📍🔵 - Statement Structure.parti
 
@@ -315,7 +315,7 @@ interface TypeSystem {
 
 ---
 
-## ⛽🌹🧈🔵 Connection Validation District
+## ⛽📍🌹🧈➕🔵 Connection Validation District
 
 ### ⛽🌹📍🔵 - Trigger Types.parti
 
@@ -383,7 +383,7 @@ Valid action types for connections:
 
 ---
 
-## ⛽⌛🧈🟡 Performance Constraints District
+## ⛽📍⌛🧈➕🟡 Performance Constraints District
 
 ### ⛽⌛📍🟡 - Scale Limits.parti
 
@@ -427,7 +427,7 @@ interface FileSizeConstraints {
 
 ---
 
-## ⛽🌋🧈🔵 Error Taxonomy District
+## ⛽📍🌋🧈➕🔵 Error Taxonomy District
 
 ### ⛽🌋📍🔵 - Error Types.parti
 
@@ -480,12 +480,12 @@ interface GraphPartiError {
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| Structural Constraints | ⛽🏛🧈🔵 | 4 | ✅ Complete |
-| Input Validation | ⛽🔨🧈🔵 | 3 | ✅ Complete |
-| SCL Syntax Validation | ⛽🦉🧈🔵 | 3 | ✅ Complete |
-| Connection Validation | ⛽🌹🧈🔵 | 3 | ✅ Complete |
-| Performance Constraints | ⛽⌛🧈🟡 | 2 | ✅ Complete |
-| Error Taxonomy | ⛽🌋🧈🔵 | 1 | ✅ Complete |
+| Structural Constraints | ⛽📍🏛🧈➕🔵 | 4 | ✅ Complete |
+| Input Validation | ⛽📍🔨🧈➕🔵 | 3 | ✅ Complete |
+| SCL Syntax Validation | ⛽📍🦉🧈➕🔵 | 3 | ✅ Complete |
+| Connection Validation | ⛽📍🌹🧈➕🔵 | 3 | ✅ Complete |
+| Performance Constraints | ⛽📍⌛🧈➕🟡 | 2 | ✅ Complete |
+| Error Taxonomy | ⛽📍🌋🧈➕🔵 | 1 | ✅ Complete |
 
 **Total: 16 items across 6 districts**
 

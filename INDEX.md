@@ -23,172 +23,184 @@
 
 ## Master Zip Index
 
+## District Zip Rules
+
+District headers use the 6-dial structure to name parent containers:
+
+```
+Order · Type · Axis · Block · Modifier · Color
+```
+
+**Defaults for district headers:** use `📍` for **Type** (locator/anchor) and `➕` for **Modifier** (base/neutral) unless the district needs a specific action or direction.
+
+**Canonical example:** `🐂📍🏛🧈➕🔵` = Foundation + locator + Structure axis + Core block + Base modifier + Planning.
+
 ### 🐂 Tuscan — Foundation (14 items)
 
 ```
-🐂🏛🧈🔵 Core Architecture District
+🐂📍🏛🧈➕🔵 Core Architecture District
 ├── 🐂🏛📍🔵 Canvas primitives.parti
 ├── 🐂🏛📍🔵 Block model.parti (8 types)
 ├── 🐂🏛📍🔵 Zip code system.parti
 ├── 🐂🏛📍🔵 District model.parti
 └── 🐂🏛📍🔵 Layer architecture.parti
 
-🐂🧲🧈🔵 SCL Language Core District
+🐂📍🧲🧈➕🔵 SCL Language Core District
 ├── 🐂🧲📍🔵 61 emoji vocabulary.parti
 ├── 🐂🧲📍🔵 Type operators.parti
 ├── 🐂🧲📍🔵 Color system.parti
 └── 🐂🧲📍🔵 Grammar rules.parti
 
-🐂🔨🧈🔵 .parti File Format District
+🐂📍🔨🧈➕🔵 .parti File Format District
 ├── 🐂🔨📍🔵 File structure.parti
 └── 🐂🔨📍🔵 Content types.parti
 
-🐂🪐🧈🔵 Core Principles District
+🐂📍🪐🧈➕🔵 Core Principles District
 ├── 🐂🪐📍🔵 Design philosophy.parti
 └── 🐂🪐📍🔵 The name meaning.parti
 
-🐂🧬🧈🔵 Block Lifecycle District
+🐂📍🧬🧈➕🔵 Block Lifecycle District
 └── 🐂🧬📍🔵 Lifecycle states.parti
 ```
 
 ### ⛽ Doric — Validation (16 items)
 
 ```
-⛽🏛🧈🔵 Structural Constraints District
+⛽📍🏛🧈➕🔵 Structural Constraints District
 ├── ⛽🏛📍🔵 Grid rules.parti
 ├── ⛽🏛📍🔵 Zip validation.parti
 ├── ⛽🏛📍🔵 Lock rules.parti
 └── ⛽🏛📍🔵 Layer collision.parti
 
-⛽🔨🧈🔵 Input Validation District
+⛽📍🔨🧈➕🔵 Input Validation District
 ├── ⛽🔨📍🔵 Paste detection.parti
 ├── ⛽🔨📍🔵 File type support.parti
 └── ⛽🔨📍🔵 Block validation.parti
 
-⛽🦉🧈🔵 SCL Syntax Validation District
+⛽📍🦉🧈➕🔵 SCL Syntax Validation District
 ├── ⛽🦉📍🔵 Statement structure.parti
 ├── ⛽🦉📍🔵 Expression rules.parti
 └── ⛽🦉📍🔵 Type checking.parti
 
-⛽🌹🧈🔵 Connection Validation District
+⛽📍🌹🧈➕🔵 Connection Validation District
 ├── ⛽🌹📍🔵 Trigger types.parti
 ├── ⛽🌹📍🔵 Condition structure.parti
 └── ⛽🌹📍🔵 Action types.parti
 
-⛽⌛🧈🟡 Performance Constraints District
+⛽📍⌛🧈➕🟡 Performance Constraints District
 ├── ⛽⌛📍🟡 Scale limits.parti
 └── ⛽⌛📍🟡 File size.parti
 
-⛽🌋🧈🔵 Error Taxonomy District
+⛽📍🌋🧈➕🔵 Error Taxonomy District
 └── ⛽🌋📍🔵 Error types.parti
 ```
 
 ### 🦋 Ionic — Building (23 items)
 
 ```
-🦋🏛🧈🟢 Canvas Features District
+🦋📍🏛🧈➕🟢 Canvas Features District
 ├── 🦋🏛📍🟢 Pan and zoom.parti
 ├── 🦋🏛📍🟢 Grid toggle.parti
 ├── 🦋🏛📍🟢 Selection system.parti
 └── 🦋🏛📍🟢 Undo system.parti
 
-🦋🔨🧈🟢 Input Features District
+🦋📍🔨🧈➕🟢 Input Features District
 ├── 🦋🔨📍🟢 Double-tap to type.parti
 ├── 🦋🔨📍🟢 Stylus drawing.parti
 ├── 🦋🔨📍🟢 Paste handling.parti
 └── 🦋🔨📍🟢 Text block modes.parti
 
-🦋✒️🧈🟢 Eraser Tools District
+🦋📍✒️🧈➕🟢 Eraser Tools District
 ├── 🦋✒️📍🟢 Line eraser.parti
 ├── 🦋✒️📍🟢 Text eraser.parti
 └── 🦋✒️📍🟢 Snippet eraser.parti
 
-🦋🧲🧈🟢 Block Features District
+🦋📍🧲🧈➕🟢 Block Features District
 ├── 🦋🧲📍🟢 Block creation.parti
 ├── 🦋🧲📍🟢 Block editing.parti
 ├── 🦋🧲📍🟢 Block full-screen.parti
 └── 🦋🧲📍🟢 Block scaling.parti
 
-🦋📍🧈🟢 Zip Features District
+🦋📍📍🧈➕🟢 Zip Features District
 ├── 🦋📍📍🟢 Dial picker.parti
 ├── 🦋📍📍🟢 Zip evolution.parti
 ├── 🦋📍📍🟢 Zip queries.parti
 └── 🦋📍📍🟢 Snap to zip.parti
 
-🦋🛠🧈🟢 Tool Building District
+🦋📍🛠🧈➕🟢 Tool Building District
 ├── 🦋🛠📍🟢 Tool from selection.parti
 ├── 🦋🛠📍🟢 AI tool generation.parti
 └── 🦋🛠📍🟢 Slash commands.parti
 
-🦋🪜🧈🟡 Development Roadmap District
+🦋📍🪜🧈➕🟡 Development Roadmap District
 └── 🦋🪜📍🟡 Phase progress.parti
 ```
 
 ### 🏟 Corinthian — Execution (16 items)
 
 ```
-🏟🦉🧈🔵 SCL Interpreter District
+🏟📍🦉🧈➕🔵 SCL Interpreter District
 ├── 🏟🦉📍🔵 Interpreter architecture.parti
 └── 🏟🦉📍🔵 Core operations.parti
 
-🏟🐍🧈🔵 Python Bridge District
+🏟📍🐍🧈➕🔵 Python Bridge District
 ├── 🏟🐍📍🔵 Bridge architecture.parti
 ├── 🏟🐍📍🔵 Code block syntax.parti
 └── 🏟🐍📍🟢 Pyodide integration.parti
 
-🏟🤌🧈🔵 Trigger Execution District
+🏟📍🤌🧈➕🔵 Trigger Execution District
 ├── 🏟🤌📍🔵 Execution flow.parti
 ├── 🏟🤌📍🔵 Event queue.parti
 └── 🏟🤌📍🔵 Block execution context.parti
 
-🏟🧸🧈🔵 Navigation District
+🏟📍🧸🧈➕🔵 Navigation District
 ├── 🏟🧸📍🔵 Connection ports.parti
 ├── 🏟🧸📍🔵 Navigation modes.parti
 └── 🏟🧸📍🔵 Zip routing.parti
 
-🏟🚀🧈🔵 Tool Execution District
+🏟📍🚀🧈➕🔵 Tool Execution District
 ├── 🏟🚀📍🔵 Tool interaction flow.parti
 └── 🏟🚀📍🔵 Tool state.parti
 
-🏟⌛🧈🟢 State Management District
+🏟📍⌛🧈➕🟢 State Management District
 ├── 🏟⌛📍🟢 Variable scopes.parti
 └── 🏟⌛📍🟢 Block states.parti
 
-🏟🫀🧈🔵 Execution Patterns District
+🏟📍🫀🧈➕🔵 Execution Patterns District
 └── 🏟🫀📍🔵 Common patterns.parti
 ```
 
 ### 🌾 Composite — Integration (20 items)
 
 ```
-🌾🐬🧈🟠 Collaboration District
+🌾📍🐬🧈➕🟠 Collaboration District
 ├── 🌾🐬📍🟠 Multi-user workflow.parti
 ├── 🌾🐬📍🟠 Version merging.parti
 ├── 🌾🐬📍🟠 Form workflows.parti
 └── 🌾🐬📍🟠 Sharing formats.parti
 
-🌾🦢🧈🟠 System Integrations District
+🌾📍🦢🧈➕🟠 System Integrations District
 ├── 🌾🦢📍🟠 Hub and spoke model.parti
 ├── 🌾🦢📍🟠 File type conversions.parti
 └── 🌾🦢📍🟠 External API integration.parti
 
-🌾🤌🧈🟠 AI Integration District
+🌾📍🤌🧈➕🟠 AI Integration District
 ├── 🌾🤌📍🟠 Context for AI.parti
 ├── 🌾🤌📍🟠 AI capabilities.parti
 ├── 🌾🤌📍🟠 AI as co-creator.parti
 └── 🌾🤌📍🟠 Spatial instruction.parti
 
-🌾🧬🧈🟠 Layer Integration District
+🌾📍🧬🧈➕🟠 Layer Integration District
 ├── 🌾🧬📍🟠 7 sheets integration.parti
 ├── 🌾🧬📍🟠 Ghost layer system.parti
 └── 🌾🧬📍🟠 Trace paper versioning.parti
 
-🌾🏗🧈🟠 Platform Integration District
+🌾📍🏗🧈➕🟠 Platform Integration District
 ├── 🌾🏗📍🟠 Cross-device sync.parti
 ├── 🌾🏗📍🟠 Runtime environments.parti
 └── 🌾🏗📍🟠 Recursive build strategy.parti
 
-🌾🔗🧈🟠 Connection System District
+🌾📍🔗🧈➕🟠 Connection System District
 ├── 🌾🔗📍🟠 Block connections.parti
 ├── 🌾🔗📍🟠 Conditional routing.parti
 └── 🌾🔗📍🟠 Cross-zip connections.parti
@@ -197,35 +209,35 @@
 ### ⚖ Vitruvian — Calibration (21 items)
 
 ```
-⚖🏛🧈🔵 Proportions & Scale District
+⚖📍🏛🧈➕🔵 Proportions & Scale District
 ├── ⚖🏛📍🔵 D unit system.parti
 ├── ⚖🏛📍🔵 Scale settings.parti
 └── ⚖🏛📍🔵 Document margins.parti
 
-⚖🔨🧈🔵 Drafting Tools District
+⚖📍🔨🧈➕🔵 Drafting Tools District
 ├── ⚖🔨📍🔵 Parallel bar.parti
 ├── ⚖🔨📍🔵 Line tools.parti
 ├── ⚖🔨📍🔵 Shape tools.parti
 └── ⚖🔨📍🔵 Dimension callouts.parti
 
-⚖🌹🧈🔵 UI Calibration District
+⚖📍🌹🧈➕🔵 UI Calibration District
 ├── ⚖🌹📍🔵 Adaptive UI per sheet.parti
 ├── ⚖🌹📍🔵 Color theming.parti
 ├── ⚖🌹📍🔵 Zoom-level rendering.parti
 └── ⚖🌹📍🔵 Zip visibility.parti
 
-⚖🪐🧈🔵 UX Balance District
+⚖📍🪐🧈➕🔵 UX Balance District
 ├── ⚖🪐📍🔵 Minimal UI philosophy.parti
 ├── ⚖🪐📍🔵 Mobile-first considerations.parti
 ├── ⚖🪐📍🔵 Intent separation.parti
 └── ⚖🪐📍🔵 Lock and move behavior.parti
 
-⚖⌛🧈🔵 Performance Tuning District
+⚖📍⌛🧈➕🔵 Performance Tuning District
 ├── ⚖⌛📍🔵 Render optimization.parti
 ├── ⚖⌛📍🔵 Input responsiveness.parti
 └── ⚖⌛📍🔵 File handling.parti
 
-⚖🎯🧈🔵 Classical Architecture UI District
+⚖📍🎯🧈➕🔵 Classical Architecture UI District
 ├── ⚖🎯📍🔵 Order-themed sheets.parti
 ├── ⚖🎯📍🔵 Educational UI.parti
 └── ⚖🎯📍🔵 Figure-ground rendering.parti
@@ -234,44 +246,44 @@
 ### 🖼 Palladian — Experience (26 items)
 
 ```
-🖼👀🧈🟣 User Experience District
+🖼📍👀🧈➕🟣 User Experience District
 ├── 🖼👀📍🟣 First experience.parti
 ├── 🖼👀📍🟣 Kinesthetic familiarity.parti
 └── 🖼👀📍🟣 Intuitive onboarding.parti
 
-🖼🌹🧈🟣 Visual Rendering District
+🖼📍🌹🧈➕🟣 Visual Rendering District
 ├── 🖼🌹📍🟣 Block rendering layers.parti
 ├── 🖼🌹📍🟣 Visual states.parti
 └── 🖼🌹📍🟣 Type-specific rendering.parti
 
-🖼🎼🧈🟣 Presentation District
+🖼📍🎼🧈➕🟣 Presentation District
 ├── 🖼🎼📍🟣 Export formats.parti
 ├── 🖼🎼📍🟣 Viewport saving.parti
 └── 🖼🎼📍🟣 Presentation mode.parti
 
-🖼🏛🧈🟣 Use Case Experience District
+🖼📍🏛🧈➕🟣 Use Case Experience District
 ├── 🖼🏛📍🟣 Architecture & Design.parti
 ├── 🖼🏛📍🟣 Education.parti
 ├── 🖼🏛📍🟣 Construction & Development.parti
 ├── 🖼🏛📍🟣 Creative work.parti
 └── 🖼🏛📍🟣 Software development.parti
 
-🖼🤌🧈🟣 Interactive Experience District
+🖼📍🤌🧈➕🟣 Interactive Experience District
 ├── 🖼🤌📍🟣 .parti as universe.parti
 ├── 🖼🤌📍🟣 AI-rendered experience.parti
 └── 🖼🤌📍🟣 Embedded interactivity.parti
 
-🖼🐬🧈🟣 Social Experience District
+🖼📍🐬🧈➕🟣 Social Experience District
 ├── 🖼🐬📍🟣 Jury/critique mode.parti
 ├── 🖼🐬📍🟣 Team experience.parti
 └── 🖼🐬📍🟣 Sharing experience.parti
 
-🖼🧬🧈🟣 Platform Experience District
+🖼📍🧬🧈➕🟣 Platform Experience District
 ├── 🖼🧬📍🟣 Mobile experience.parti
 ├── 🖼🧬📍🟣 Offline experience.parti
 └── 🖼🧬📍🟣 PWA experience.parti
 
-🖼🪐🧈🟣 Product Vision District
+🖼📍🪐🧈➕🟣 Product Vision District
 ├── 🖼🪐📍🟣 What Graph Parti IS.parti
 ├── 🖼🪐📍🟣 Who it's for.parti
 └── 🖼🪐📍🟣 The tagline.parti

@@ -6,7 +6,7 @@
 
 ---
 
-## 🐂🏛🧈🔵 Core Architecture District
+## 🐂📍🏛🧈➕🔵 Core Architecture District
 
 Parent container for all foundational structural definitions. Everything in Graph Parti rests on these primitives.
 
@@ -203,7 +203,7 @@ interface District {
 
 **District Hierarchy:**
 ```
-🐂🏛🧈🔵 Core Architecture (PARENT)
+🐂📍🏛🧈➕🔵 Core Architecture (PARENT)
 ├── 🐂🏛📍🔵 Canvas primitives
 ├── 🐂🏛📍🔵 Block model
 ├── 🐂🏛📍🔵 Zip code system
@@ -275,7 +275,7 @@ interface Layer {
 
 ---
 
-## 🐂🧲🧈🔵 SCL Language Core District
+## 🐂📍🧲🧈➕🔵 SCL Language Core District
 
 The Semantic Compression Language — 61 emojis as semantic anchors.
 
@@ -365,12 +365,12 @@ Every complete thought ends with a color. Colors mark state.
 🟡              ← valid (idea, untagged)
 🐂🟡            ← valid (foundation idea)
 🐂🏛🟡          ← valid (foundation structure idea)
-🐂🏛🧈🟡        ← valid (foundation structure core idea)
+🐂📍🏛🧈➕🟡        ← valid (foundation structure core idea)
 ```
 
 ---
 
-## 🐂🔨🧈🔵 .parti File Format District
+## 🐂📍🔨🧈➕🔵 .parti File Format District
 
 ### 🐂🔨📍🔵 - File Structure.parti
 
@@ -424,7 +424,7 @@ Every complete thought ends with a color. Colors mark state.
 
 ---
 
-## 🐂🪐🧈🔵 Core Principles District
+## 🐂📍🪐🧈➕🔵 Core Principles District
 
 ### 🐂🪐📍🔵 - Design Philosophy.parti
 
@@ -472,7 +472,7 @@ Graph Parti ≈ Block Party 🎉
 
 ---
 
-## 🐂🧬🧈🔵 Block Lifecycle District
+## 🐂📍🧬🧈➕🔵 Block Lifecycle District
 
 ### 🐂🧬📍🔵 - Lifecycle States.parti
 
@@ -517,11 +517,11 @@ Graph Parti ≈ Block Party 🎉
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| Core Architecture | 🐂🏛🧈🔵 | 5 | ✅ Complete |
-| SCL Language Core | 🐂🧲🧈🔵 | 4 | ✅ Complete |
-| .parti File Format | 🐂🔨🧈🔵 | 2 | ✅ Complete |
-| Core Principles | 🐂🪐🧈🔵 | 2 | ✅ Complete |
-| Block Lifecycle | 🐂🧬🧈🔵 | 1 | ✅ Complete |
+| Core Architecture | 🐂📍🏛🧈➕🔵 | 5 | ✅ Complete |
+| SCL Language Core | 🐂📍🧲🧈➕🔵 | 4 | ✅ Complete |
+| .parti File Format | 🐂📍🔨🧈➕🔵 | 2 | ✅ Complete |
+| Core Principles | 🐂📍🪐🧈➕🔵 | 2 | ✅ Complete |
+| Block Lifecycle | 🐂📍🧬🧈➕🔵 | 1 | ✅ Complete |
 
 **Total: 14 items across 5 districts**
 
