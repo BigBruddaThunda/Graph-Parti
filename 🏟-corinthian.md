@@ -6,7 +6,7 @@
 
 ---
 
-## 🏟🦉🧈🔵 SCL Interpreter District
+## 🏟📍🦉🧈➕🔵 SCL Interpreter District
 
 The engine that parses and executes Semantic Compression Language.
 
@@ -32,86 +32,7 @@ The engine that parses and executes Semantic Compression Language.
 │  └──────┬──────┘                                            │
 │         ▼                                                   │
 │  ┌─────────────┐                                            │
-│  │  Executor   │  Do the thing                              │
-│  │             │  state.set("x", 0)                         │
-│  └──────┬──────┘                                            │
-│         ▼                                                   │
-│  ┌─────────────┐                                            │
-│  │   State     │  Track all runtime state                   │
-│  │   Manager   │  Variables, scopes, history                │
-│  └─────────────┘                                            │
-└─────────────────────────────────────────────────────────────┘
-```
-
-```typescript
-interface SCLInterpreter {
-  // Pipeline
-  lexer: Lexer
-  parser: Parser
-  validator: Validator
-  executor: Executor
-  stateManager: StateManager
-  
-  // Execute
-  execute(source: string, context: ExecutionContext): ExecutionResult
-  executeLine(line: string, context: ExecutionContext): LineResult
-}
-```
-
----
-
-### 🏟🦉📍🔵 - Core Operations.parti
-
-**Variables (🐂📍 init place):**
-```scl
-🐂📍 x 0                    ← create x, set to 0
-🐂📍 name "Alex"            ← create string variable
-🐂📍 items []               ← create empty list
-🐂📍 config {}              ← create empty map
-```
-
-**Input (🧲 capture):**
-```scl
-🧲🪡 name                   ← pull input from user
-🧲🪡 name "Enter name:"    ← with prompt message
-🧲🪡 age "Enter age:"       ← typed input
-```
-
-**Output (🚀 dispatch):**
-```scl
-🚀🛒 "Hello"                ← push text to display
-🚀🛒 variable               ← push variable value
-🚀🛒🎯 blockRef "text"      ← push to specific block
-```
-
-**Logic (🦉 parse):**
-```scl
-🦉 x > 10                   ← evaluate condition
-🦉 name === "Alex"          ← equality check
-🦉 active                   ← truthy check
-🦉 items.length > 0         ← property access
-```
-
-**Math (➕➖):**
-```scl
-➕ x 1                      ← add 1 to x
-➖ x 1                      ← subtract 1 from x
-➕ total price             ← add price to total
-➖ inventory sold          ← subtract sold from inventory
-```
-
-**Control Flow:**
-```scl
-🦉 condition ↳              ← if true, execute indented block
-  🚀🛒 "Yes!"
-↳                           ← else branch
-  🚀🛒 "No!"
-
-🦋 items ↳                  ← for each in items
-  🚀🛒 item
-
-🦋 5 ↳                      ← repeat 5 times
-  🤌🎯 action
+@@ -115,51 +115,51 @@ interface SCLInterpreter {
 
 🖼                          ← return/exit current block
 ⚫                          ← end/complete execution
@@ -137,7 +58,7 @@ interface SCLInterpreter {
 
 ---
 
-## 🏟🐍🧈🔵 Python Bridge District
+## 🏟📍🐍🧈➕🔵 Python Bridge District
 
 ### 🏟🐍📍🔵 - Bridge Architecture.parti
 
@@ -163,46 +84,7 @@ SCL Context              Python Runtime
 interface PythonBridge {
   // Variable exchange
   pushToPython(name: string, value: any): void
-  pullFromPython(name: string): any
-  
-  // Execution
-  execute(code: string): ExecutionResult
-  
-  // Context
-  globals: Map<string, any>
-  libraries: string[]  // Available imports
-}
-```
-
----
-
-### 🏟🐍📍🔵 - Code Block Syntax.parti
-
-```
-┌─────────────────────────────────┐
-│ 🐍 Python                       │
-├─────────────────────────────────┤
-│ import math                     │
-│                                 │
-│ # 🧲 pulls SCL variables in    │
-│ radius = 🧲radius               │
-│                                 │
-│ area = math.pi * radius ** 2   │
-│                                 │
-│ # 🚀 pushes results back       │
-│ 🚀area                          │
-└─────────────────────────────────┘
-```
-
-**Syntax Conventions:**
-- `🧲variable` — Pull SCL variable into Python
-- `🚀variable` — Push Python variable back to SCL
-- Standard Python syntax otherwise
-
----
-
-### 🏟🐍📍🟢 - Pyodide Integration.parti
-
+@@ -206,51 +206,51 @@ interface PythonBridge {
 ```typescript
 interface PyodideConfig {
   // Runtime
@@ -228,7 +110,7 @@ interface PyodideConfig {
 
 ---
 
-## 🏟🤌🧈🔵 Trigger Execution District
+## 🏟📍🤌🧈➕🔵 Trigger Execution District
 
 ### 🏟🤌📍🔵 - Execution Flow.parti
 
@@ -254,63 +136,7 @@ Execute Action
 ```typescript
 interface TriggerExecution {
   // Flow
-  fire(trigger: Trigger): void
-  checkCondition(condition: Condition): boolean
-  buildContext(trigger: Trigger): ExecutionContext
-  executeAction(action: Action, context: ExecutionContext): void
-  
-  // Action types
-  actions: {
-    navigate: (target: Target) => void
-    execute: (target: BlockId) => void
-    show: (target: BlockId) => void
-    hide: (target: BlockId) => void
-    set: (name: string, value: any) => void
-    call: (toolId: string, inputs: any) => any
-  }
-}
-```
-
----
-
-### 🏟🤌📍🔵 - Event Queue.parti
-
-```typescript
-interface EventQueue {
-  // Queue management
-  queue: Event[]
-  maxSize: 100
-  
-  // Processing
-  scheduler: 'fifo' | 'priority'
-  processOneAtATime: true
-  
-  // Event structure
-  event: {
-    type: EventType
-    timestamp: number
-    source: BlockId
-    data: any
-  }
-}
-```
-
-**Queue Behavior:**
-- Events wait in queue
-- Scheduler picks next
-- Process one at a time
-- Condition check before execute
-
----
-
-### 🏟🤌📍🔵 - Block Execution Context.parti
-
-```typescript
-interface ExecutionContext {
-  // Identity
-  block: Block              // Which block is executing
-  trigger: Trigger          // What fired
-  
+@@ -314,51 +314,51 @@ interface ExecutionContext {
   // State
   globals: Map<string, any> // Global variables
   locals: Map<string, any>  // Block-local state
@@ -336,7 +162,7 @@ interface ExecutionContext {
 
 ---
 
-## 🏟🧸🧈🔵 Navigation District
+## 🏟📍🧸🧈➕🔵 Navigation District
 
 ### 🏟🧸📍🔵 - Connection Ports.parti
 
@@ -362,30 +188,7 @@ left ─┤   center    ├─ right
 
 ```typescript
 interface ConnectionPort {
-  position: 'top' | 'bottom' | 'left' | 'right' | 'center'
-  symbol: string
-  typicalUse: string
-}
-```
-
----
-
-### 🏟🧸📍🔵 - Navigation Modes.parti
-
-| Mode | Behavior | Use Case |
-|------|----------|----------|
-| fullscreen | Target fills viewport | Focus on single block |
-| scroll | Smooth pan to target | Show context |
-| warp | Instant jump | Zip routing, no animation |
-
-```typescript
-interface Navigation {
-  modes: {
-    fullscreen: (target: BlockId) => void
-    scroll: (target: BlockId) => void
-    warp: (target: BlockId | ZipCode) => void
-  }
-}
+@@ -389,51 +389,51 @@ interface Navigation {
 ```
 
 ---
@@ -411,7 +214,7 @@ interface ZipRouting {
 
 ---
 
-## 🏟🚀🧈🔵 Tool Execution District
+## 🏟📍🚀🧈➕🔵 Tool Execution District
 
 ### 🏟🚀📍🔵 - Tool Interaction Flow.parti
 
@@ -437,14 +240,7 @@ interface ToolExecution {
 ```
 
 ---
-
-### 🏟🚀📍🔵 - Tool State.parti
-
-```typescript
-interface ToolState {
-  inputValues: Map<InputId, any>
-  outputValues: Map<OutputId, any>
-  internalState: Map<string, any>
+@@ -448,51 +448,51 @@ interface ToolState {
   
   // Lifecycle
   initialized: boolean
@@ -470,7 +266,7 @@ interface ToolState {
 
 ---
 
-## 🏟⌛🧈🟢 State Management District
+## 🏟📍⌛🧈➕🟢 State Management District
 
 ### 🏟⌛📍🟢 - Variable Scopes.parti
 
@@ -496,19 +292,7 @@ interface VariableScopes {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   Created ──▶ Idle ◀────▶ Executing ──▶ Complete            │
-│                 │            │            │                 │
-│                 ▼            ▼            ▼                 │
-│              Locked       Error      Paused                 │
-│                 │            │            │                 │
-│                 ▼            ▼            ▼                 │
-│              Hidden      Deleted (in 🧮 undo stack)         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-```typescript
+@@ -512,51 +512,51 @@ interface VariableScopes {
 type BlockState = 
   | 'created'     // Just spawned
   | 'idle'        // Waiting
@@ -534,7 +318,7 @@ type BlockState =
 
 ---
 
-## 🏟🫀🧈🔵 Execution Patterns District
+## 🏟📍🫀🧈➕🔵 Execution Patterns District
 
 ### 🏟🫀📍🔵 - Common Patterns.parti
 
@@ -560,10 +344,7 @@ type BlockState =
 ```scl
 🦉 menuItemTapped ↳
   🦉 item === "home" ↳
-    🧸 🏠
-  🦉 item === "settings" ↳
-    🧸 🎯⚙️
-```
+@@ -567,38 +567,38 @@ type BlockState =
 
 **Timer Pattern:**
 ```scl
@@ -589,13 +370,13 @@ type BlockState =
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| SCL Interpreter | 🏟🦉🧈🔵 | 2 | ✅ Complete |
-| Python Bridge | 🏟🐍🧈🔵 | 3 | ✅ Complete |
-| Trigger Execution | 🏟🤌🧈🔵 | 3 | ✅ Complete |
-| Navigation | 🏟🧸🧈🔵 | 3 | ✅ Complete |
-| Tool Execution | 🏟🚀🧈🔵 | 2 | ✅ Complete |
-| State Management | 🏟⌛🧈🟢 | 2 | ✅ Complete |
-| Execution Patterns | 🏟🫀🧈🔵 | 1 | ✅ Complete |
+| SCL Interpreter | 🏟📍🦉🧈➕🔵 | 2 | ✅ Complete |
+| Python Bridge | 🏟📍🐍🧈➕🔵 | 3 | ✅ Complete |
+| Trigger Execution | 🏟📍🤌🧈➕🔵 | 3 | ✅ Complete |
+| Navigation | 🏟📍🧸🧈➕🔵 | 3 | ✅ Complete |
+| Tool Execution | 🏟📍🚀🧈➕🔵 | 2 | ✅ Complete |
+| State Management | 🏟📍⌛🧈➕🟢 | 2 | ✅ Complete |
+| Execution Patterns | 🏟📍🫀🧈➕🔵 | 1 | ✅ Complete |
 
 **Total: 16 items across 7 districts**
 

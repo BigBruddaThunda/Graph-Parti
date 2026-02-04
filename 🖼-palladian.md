@@ -6,7 +6,7 @@
 
 ---
 
-## 🖼👀🧈🟣 User Experience District
+## 🖼📍👀🧈➕🟣 User Experience District
 
 The feel and flow of using Graph Parti.
 
@@ -32,46 +32,7 @@ interface FirstExperience {
 
 **First Launch:**
 - Opens on 🐂 Tuscan sheet (simple front door)
-- Each sheet adds complexity
-- Learning by using, not tutorials
-- Rewards exploration and play
-
----
-
-### 🖼👀📍🟣 - Kinesthetic Familiarity.parti
-
-Target feel:
-
-| Aspect | Description |
-|--------|-------------|
-| Core feel | Microsoft Paint meets AutoCAD on graph paper |
-| Learning path | Legos + crayons → realize they're code commands |
-| Icon behavior | Icons become tools, typing becomes programming |
-| Learning curve | No 10 YouTube videos needed |
-
-```typescript
-interface KinestheticFamiliarity {
-  // Metaphors
-  metaphors: {
-    visual: 'Paint + AutoCAD + graph paper'
-    learning: 'Legos → realize they are code'
-    tools: 'Icons become physical tools'
-  }
-  
-  // Goal
-  goal: 'intuitive-without-tutorials'
-  
-  // Approach
-  approach: 'rewards-figuring-it-out'
-}
-```
-
----
-
-### 🖼👀📍🟣 - Intuitive Onboarding.parti
-
-| Gesture | Action | Learning Speed |
-|---------|--------|----------------|
+@@ -75,51 +75,51 @@ interface KinestheticFamiliarity {
 | Drag | Pan canvas | Immediate |
 | Pinch | Zoom | Immediate |
 | Double-tap | Type | First use |
@@ -97,7 +58,7 @@ interface Onboarding {
 
 ---
 
-## 🖼🌹🧈🟣 Visual Rendering District
+## 🖼📍🌹🧈➕🟣 Visual Rendering District
 
 ### 🖼🌹📍🟣 - Block Rendering Layers.parti
 
@@ -123,30 +84,7 @@ interface BlockRenderingLayers {
     content: { zIndex: 3, content: 'text-table-image' }
     background: { zIndex: 2, content: 'fill-border' }
     shadowEffects: { zIndex: 1, content: 'drop-shadow-glow' }
-  }
-}
-```
-
----
-
-### 🖼🌹📍🟣 - Visual States.parti
-
-| State | Visual Indicator |
-|-------|------------------|
-| Normal | Default appearance |
-| Selected | Highlight border, handles |
-| Hovered | Subtle highlight |
-| Locked | Lock icon, dimmed |
-| Executing | Pulse animation |
-| Error | Red border, error icon |
-| Connected | Connection lines visible |
-
-```typescript
-interface VisualStates {
-  states: {
-    normal: { appearance: 'default' }
-    selected: { border: 'highlight', handles: true }
-    hovered: { highlight: 'subtle' }
+@@ -150,51 +150,51 @@ interface VisualStates {
     locked: { icon: 'lock', dimmed: true }
     executing: { animation: 'pulse' }
     error: { border: 'red', icon: 'error' }
@@ -172,7 +110,7 @@ Each block type has distinct visual:
 
 ---
 
-## 🖼🎼🧈🟣 Presentation District
+## 🖼📍🎼🧈➕🟣 Presentation District
 
 ### 🖼🎼📍🟣 - Export Formats.parti
 
@@ -198,34 +136,7 @@ interface ExportFormats {
 
 ---
 
-### 🖼🎼📍🟣 - Viewport Saving.parti
-
-```typescript
-interface ViewportSaving {
-  // Output
-  output: 'hi-res-image'
-  
-  // Quality
-  textQuality: 'not-pixelated'
-  sketchQuality: 'maintained'
-  
-  // Metadata
-  includes: 'scale-annotations'
-  
-  // Use case
-  useCase: 'presentation-quality-export'
-}
-```
-
-**Viewport Save:**
-- Save viewport as hi-res image
-- Text doesn't look pixelated
-- Sketches maintain quality
-- Scale annotations included
-
----
-
-### 🖼🎼📍🟣 - Presentation Mode.parti
+@@ -229,51 +229,51 @@ interface ViewportSaving {
 
 ```typescript
 interface PresentationMode {
@@ -251,7 +162,7 @@ interface PresentationMode {
 
 ---
 
-## 🖼🏛🧈🟣 Use Case Experience District
+## 🖼📍🏛🧈➕🟣 Use Case Experience District
 
 ### 🖼🏛📍🟣 - Architecture & Design.parti
 
@@ -277,89 +188,7 @@ interface ArchitectureDesign {
 - Classical architecture UI teaches while using
 - Floor plans, elevations, sections together
 - CAD blocks tied to zips
-- 3D print ready export
-
----
-
-### 🖼🏛📍🟣 - Education.parti
-
-```typescript
-interface Education {
-  // Scope
-  scope: 'entire-4-year-college-career'
-  
-  // Projects
-  capstone: 'full-history'
-  trades: 'collaboration-timber-blacksmith'
-  
-  // Tools
-  draftingCopilot: true
-  
-  // Output
-  portfolio: 'LinkedIn-resume-ready'
-}
-```
-
-**For Students:**
-- Entire 4-year college career in one .parti
-- Capstone projects with full history
-- Trades collaboration (timber, blacksmith, etc.)
-- Digital drafting copilot
-- Portfolio for LinkedIn/resume
-
----
-
-### 🖼🏛📍🟣 - Construction & Development.parti
-
-```typescript
-interface ConstructionDevelopment {
-  // Applications
-  applications: {
-    realEstate: 'development-maps'
-    jobsite: 'daily-photos-project-update'
-    contractor: 'communication'
-    planning: 'city-planning-zoning-maps'
-    dot: 'project-planning'
-  }
-}
-```
-
-**For Construction:**
-- Real estate development maps
-- Jobsite daily photos → project update
-- Contractor communication
-- City planning, zoning maps
-- DOT project planning
-
----
-
-### 🖼🏛📍🟣 - Creative Work.parti
-
-```typescript
-interface CreativeWork {
-  // Media
-  manga: 'panels-with-prose'
-  storyboards: 'with-audio-notes'
-  comics: 'panel-layouts'
-  
-  // Games
-  gameDev: 'floor-plan-quest-notes'
-  pixelArt: 'with-tile-maps'
-  
-  // Other
-  twitch: 'emote-packs'
-}
-```
-
-**For Creatives:**
-- Manga panels with prose
-- Storyboards with audio notes
-- Comic book panels
-- Game level design (floor plan → quest notes)
-- Pixel art with tile maps
-- Twitch emote packs
-
----
+@@ -363,51 +363,51 @@ interface CreativeWork {
 
 ### 🖼🏛📍🟣 - Software Development.parti
 
@@ -385,7 +214,7 @@ interface SoftwareDevelopment {
 
 ---
 
-## 🖼🤌🧈🟣 Interactive Experience District
+## 🖼📍🤌🧈➕🟣 Interactive Experience District
 
 ### 🖼🤌📍🟣 - .parti as Universe.parti
 
@@ -411,43 +240,7 @@ interface PartiAsUniverse {
     'world',
     'interactive-story',
     'city'
-  ]
-}
-```
-
----
-
-### 🖼🤌📍🟣 - AI-Rendered Experience.parti
-
-```typescript
-interface AIRenderedExperience {
-  // Input
-  aiReads: '.parti-context'
-  
-  // Generation
-  generates: 'interactive-space'
-  
-  // Features
-  features: {
-    codeBlocks: 'become-functional'
-    rendering: 'watercolor-interaction'
-    logic: 'backrooms-rpg-dungeons'
-  }
-}
-```
-
-**AI Rendering:**
-- AI reads .parti context
-- Procedurally generates interactive space
-- Code blocks become functional
-- Watercolor renderings + interaction
-- Backrooms logic, RPG dungeons
-
----
-
-### 🖼🤌📍🟣 - Embedded Interactivity.parti
-
-```typescript
+@@ -451,51 +451,51 @@ interface AIRenderedExperience {
 interface EmbeddedInteractivity {
   // Games
   arcade: '1-shot-games-in-space'
@@ -473,7 +266,7 @@ interface EmbeddedInteractivity {
 
 ---
 
-## 🖼🐬🧈🟣 Social Experience District
+## 🖼📍🐬🧈➕🟣 Social Experience District
 
 ### 🖼🐬📍🟣 - Jury/Critique Mode.parti
 
@@ -499,41 +292,7 @@ interface JuryCritiqueMode {
   // Comparison
   like: 'powerpoint-but-collaborative'
 }
-```
-
-**Jury Mode:**
-- Digital critique like architecture jury
-- Presenter draws on screen
-- Walk through floor plans, click zips
-- Panel comments, circles elements
-- Collaborative whiteboard
-
----
-
-### 🖼🐬📍🟣 - Team Experience.parti
-
-```typescript
-interface TeamExperience {
-  // Presence
-  multiplePeople: 'live-document'
-  aiAgents: 'plus-human-teammates'
-  
-  // Communication
-  notes: 'for-next-person'
-  timestamps: true
-  metadata: 'logs'
-}
-```
-
-**Team Features:**
-- Multiple people in live document
-- AI agents + human teammates
-- Notes for next person
-- Timestamps, metadata logs
-
----
-
-### 🖼🐬📍🟣 - Sharing Experience.parti
+@@ -537,51 +537,51 @@ interface TeamExperience {
 
 ```typescript
 interface SharingExperience {
@@ -559,7 +318,7 @@ interface SharingExperience {
 
 ---
 
-## 🖼🧬🧈🟣 Platform Experience District
+## 🖼📍🧬🧈➕🟣 Platform Experience District
 
 ### 🖼🧬📍🟣 - Mobile Experience.parti
 
@@ -585,43 +344,7 @@ interface MobileExperience {
 ```
 
 **Mobile:**
-- Same file on phone/tablet/PC
-- Stylus on tablet, finger on phone
-- Custom keyboard with emojis
-- Portrait and landscape modes
-- Test UI at actual device scale
-
----
-
-### 🖼🧬📍🟣 - Offline Experience.parti
-
-```typescript
-interface OfflineExperience {
-  // Functionality
-  fullFunctionality: 'offline'
-  
-  // Sync
-  cloudSync: 'when-connected'
-  
-  // Philosophy
-  philosophy: 'local-first-online-bonus'
-  
-  // Quality
-  noDegradedExperience: true
-}
-```
-
-**Offline:**
-- Full functionality offline
-- Cloud sync when connected
-- Local first, online bonus
-- No degraded experience
-
----
-
-### 🖼🧬📍🟣 - PWA Experience.parti
-
-```typescript
+@@ -625,51 +625,51 @@ interface OfflineExperience {
 interface PWAExperience {
   // Install
   install: 'to-home-screen'
@@ -647,7 +370,7 @@ interface PWAExperience {
 
 ---
 
-## 🖼🪐🧈🟣 Product Vision District
+## 🖼📍🪐🧈➕🟣 Product Vision District
 
 ### 🖼🪐📍🟣 - What Graph Parti IS.parti
 
@@ -673,26 +396,7 @@ interface WhatGraphPartiIs {
 - Obsidian that doesn't feel like a mess
 - Notion that lets you draw
 - CAD + Word + Paint + Pixel mapping baby
-
----
-
-### 🖼🪐📍🟣 - Who It's For.parti
-
-| User | Primary Use |
-|------|-------------|
-| Architects | Blueprints, renderings, construction |
-| Students | Portfolio, capstone, learning |
-| Developers | PRDs, mockups, code |
-| Game devs | Levels, pixel art, quest maps |
-| Artists | Storyboards, emotes, mood boards |
-| Coaches | Programs, training blocks |
-| Writers | Story maps, world building |
-| Teams | Shared spaces, form workflows |
-| ADHD people | Everything in one window, no alt-tab |
-
----
-
-### 🖼🪐📍🟣 - The Tagline.parti
+@@ -696,39 +696,39 @@ interface WhatGraphPartiIs {
 
 > **"Graph Parti is Figure-Ground for your ideas."**
 
@@ -718,14 +422,14 @@ interface WhatGraphPartiIs {
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| User Experience | 🖼👀🧈🟣 | 3 | ✅ Complete |
-| Visual Rendering | 🖼🌹🧈🟣 | 3 | ✅ Complete |
-| Presentation | 🖼🎼🧈🟣 | 3 | ✅ Complete |
-| Use Case Experience | 🖼🏛🧈🟣 | 5 | ✅ Complete |
-| Interactive Experience | 🖼🤌🧈🟣 | 3 | ✅ Complete |
-| Social Experience | 🖼🐬🧈🟣 | 3 | ✅ Complete |
-| Platform Experience | 🖼🧬🧈🟣 | 3 | ✅ Complete |
-| Product Vision | 🖼🪐🧈🟣 | 3 | ✅ Complete |
+| User Experience | 🖼📍👀🧈➕🟣 | 3 | ✅ Complete |
+| Visual Rendering | 🖼📍🌹🧈➕🟣 | 3 | ✅ Complete |
+| Presentation | 🖼📍🎼🧈➕🟣 | 3 | ✅ Complete |
+| Use Case Experience | 🖼📍🏛🧈➕🟣 | 5 | ✅ Complete |
+| Interactive Experience | 🖼📍🤌🧈➕🟣 | 3 | ✅ Complete |
+| Social Experience | 🖼📍🐬🧈➕🟣 | 3 | ✅ Complete |
+| Platform Experience | 🖼📍🧬🧈➕🟣 | 3 | ✅ Complete |
+| Product Vision | 🖼📍🪐🧈➕🟣 | 3 | ✅ Complete |
 
 **Total: 26 items across 8 districts**
 

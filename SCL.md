@@ -134,20 +134,20 @@ Reading a Zip
 Read left to right. General to specific. Ending in state.
 
 🐂              ← phase (init)  
-🐂🧲            ← phase \+ action (init \+ capture)  
-🐂🧲🛒          ← phase \+ action \+ direction (init \+ capture \+ output)  
-🐂🧲🛒🟡        ← phase \+ action \+ direction \+ state (init \+ capture \+ output \+ exploring)
+🐂🧲            ← phase + action (init + capture)  
+🐂🧲🛒          ← phase + action + direction (init + capture + output)  
+🐂🧲🛒🟡        ← phase + action + direction + state (init + capture + output + exploring)
 
 Valid Zip Forms
 
 Not every zip needs all four positions. Partial zips are valid.
 
 🟡              ← color only (bullet, status marker)  
-🐂🟡            ← order \+ color (phase \+ state)  
-🐂🧲🟡          ← order \+ type \+ color (phase \+ action \+ state)  
-🐂🧲🛒🟡        ← full zip (phase \+ action \+ direction \+ state)  
-🏛🧈🔵          ← axis \+ block \+ color (lens \+ container \+ state)  
-♨️🟢            ← block \+ color (container \+ state)
+🐂🟡            ← order + color (phase + state)  
+🐂🧲🟡          ← order + type + color (phase + action + state)  
+🐂🧲🛒🟡        ← full zip (phase + action + direction + state)  
+🏛🧈🔵          ← axis + block + color (lens + container + state)  
+♨️🟢            ← block + color (container + state)
 
 Color Behavior
 
@@ -218,10 +218,10 @@ How to use them:
 In code: Mark what phase a function or block represents.
 
 // 🐂 declare user state  
-const user \= { id: null };
+const user = { id: null };
 
 // ⛽ validate input  
-if (\!data.valid) throw new Error();
+if (!data.valid) throw new Error();
 
 // 🏟 execute main logic  
 return processData(data);
@@ -264,13 +264,13 @@ Emoji	Root	Code Meanings
 
 The roots are Latin/Greek. They help you remember the core meaning:
 
-capio \= to take, capture
+capio = to take, capture
 
-grapho \= to write
+grapho = to write
 
-mitto \= to send
+mitto = to send
 
-specio \= to look
+specio = to look
 
 How to use them:
 
@@ -415,7 +415,7 @@ Emoji	Name	Code Meanings
 ♨️	Warm-Up	prepare, ready  
 🎯	Intention	aim, target, goal  
 🔢	Fundamentals	basics, rules, patterns  
-🧈	Bread & Butter	main, essential, core  
+🧈	Bread \& Butter	main, essential, core  
 🫀	Circulation	flow, pulse, cycle  
 ▶️	Primer	activate, start, trigger  
 🎼	Composition	arrange, compose, orchestrate  
@@ -469,7 +469,7 @@ saveState(currentData);
 
 Now that you know the vocabulary, here's how to combine it.
 
-Pattern 1: Order \+ Color
+Pattern 1: Order + Color
 
 Phase plus state. The simplest meaningful zip.
 
@@ -478,7 +478,7 @@ Phase plus state. The simplest meaningful zip.
 🏟🔴         ← execute, urgent  
 🖼⚫         ← complete, done
 
-Pattern 2: Order \+ Type \+ Color
+Pattern 2: Order + Type + Color
 
 Phase plus action plus state.
 
@@ -487,7 +487,7 @@ Phase plus action plus state.
 🏟🚀🔴       ← execute dispatch, urgent  
 ⚖🦉🔵       ← calibrate parse, structured
 
-Pattern 3: Order \+ Type \+ Modifier \+ Color
+Pattern 3: Order + Type + Modifier + Color
 
 Full zip. Phase plus action plus direction plus state.
 
@@ -496,7 +496,7 @@ Full zip. Phase plus action plus direction plus state.
 🏟🚀🛒🔴     ← execute dispatch output, urgent  
 🖼👀🏛⚫     ← complete inspect structure, done
 
-Pattern 4: Axis \+ Block \+ Color
+Pattern 4: Axis + Block + Color
 
 Lens plus container plus state.
 
@@ -547,7 +547,7 @@ aren't filtering properly. 🔴"
 
 In Documentation
 
-Headers use Order \+ Block \+ Color:
+Headers use Order + Block + Color:
 
 🐂 SETUP 🟢  
 Getting started, active work
@@ -584,12 +584,12 @@ In Code
 Comments use zip plus interpretation:
 
 // 🐂 init — declare user state  
-const user \= { id: null, session: null };
+const user = { id: null, session: null };
 
 // 🧲🪡 capture input  
 function handleInput(data) {  
 // 🦉 parse — evaluate structure  
-const parsed \= validate(data);
+const parsed = validate(data);
 
 // 🚀🛒 dispatch output  
 return emit(parsed);  
@@ -624,10 +624,10 @@ Full zip tags:
 
 Query patterns (partial zips as filters):
 
-\[\_ \_ \_ 🔴\]   ← all urgent  
-\[🐂 \_ \_ \]   ← all init phase  
-\[ 🧲 \_ \]   ← all capture operations  
-\[ \_ 🛒 🟢\]  ← all output, active
+\[\_ \_ \_ 🔴]   ← all urgent  
+\[🐂 \_ \_ ]   ← all init phase  
+\[ 🧲 \_ ]   ← all capture operations  
+\[ \_ 🛒 🟢]  ← all output, active
 
 In Structure and Navigation
 
@@ -693,8 +693,8 @@ On Partial Zips
 You don't need all four dials. Partial zips are valid:
 
 🟡              ← color only  
-🐂🟡            ← order \+ color  
-🐂🧲🟡          ← order \+ type \+ color  
+🐂🟡            ← order + color  
+🐂🧲🟡          ← order + type + color  
 🐂🧲🛒🟡        ← full zip
 
 On Context
@@ -756,7 +756,7 @@ Axes	6	🏛 🔨 🌹 🪐 ⌛ 🐬
 Colors	8	⚪ 🟡 🟠 🔴 ⚫ 🟣 🔵 🟢  
 Blocks	22	♨️ 🎯 🔢 🧈 🫀 ▶️ 🎼 ♟️ 🪜 🌎 🎱 🌋 🪞 🗿 🛠 🧩 🪫 🏖 🏗 🧬 🚂 🔠  
 System	1	🧮  
-Total	61	
+Total	61
 
 Zip Structure
 
@@ -768,11 +768,11 @@ Zip Structure
 Valid Zip Forms
 
 🟡              ← color only  
-🐂🟡            ← order \+ color  
-🐂🧲🟡          ← order \+ type \+ color  
+🐂🟡            ← order + color  
+🐂🧲🟡          ← order + type + color  
 🐂🧲🛒🟡        ← full zip  
-🏛🧈🔵          ← axis \+ block \+ color  
-♨️🟢            ← block \+ color
+🏛🧈🔵          ← axis + block + color  
+♨️🟢            ← block + color
 
 🖼 What You Now Know ⚫
 
@@ -799,3 +799,4 @@ Its state is 🟡 exploring.
 You are ready to use it. 🟢
 
 End of system. Begin collaboration. Lets speak the same language.
+

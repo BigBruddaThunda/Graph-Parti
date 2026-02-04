@@ -6,7 +6,7 @@
 
 ---
 
-## 🐂🏛🧈🔵 Core Architecture District
+## 🐂📍🏛🧈➕🔵 Core Architecture District
 
 Parent container for all foundational structural definitions. Everything in Graph Parti rests on these primitives.
 
@@ -32,152 +32,7 @@ interface Canvas {
   
   // Configuration
   config: {
-    cellSize: number               // D unit (default: 48px)
-    gridVisible: boolean
-    snapToGrid: boolean
-    showZips: 'always' | 'hover' | 'selected' | 'never'
-  }
-}
-
-type CellCoord = `${number},${number}`  // "x,y" string keys
-```
-
-**Cell Properties:**
-- Each cell holds: character, emoji, or empty
-- Cells are addressable via `🐂📍 x y` in SCL
-- Character-per-cell for grid-perfect layouts
-- Emoji-per-cell for visual markers
-
-**Stroke Properties:**
-- Array of `{x, y, pressure, timestamp}` points
-- Pressure-sensitive (stylus support)
-- Floats above grid (no snap)
-- Rendered as smooth curves
-
----
-
-### 🐂🏛📍🔵 - Block Model.parti
-
-8 fundamental block types — bounded containers that can DO things.
-
-```typescript
-interface Block {
-  id: BlockId                      // UUID v4
-  type: BlockType                  // One of 8 types
-  name: string                     // Display name
-  zip: ZipCode                     // Semantic address
-  
-  // Geometry
-  position: { x: number, y: number }     // Top-left cell coord
-  size: { width: number, height: number } // In cells
-  
-  // State
-  state: BlockState
-  locked: boolean
-  visible: boolean
-  
-  // Content (type-specific)
-  content: BlockContent
-  
-  // Connections
-  connections: Connection[]
-  
-  // Metadata
-  created: Timestamp
-  modified: Timestamp
-  author: UserId
-  version: number
-}
-
-type BlockType = 
-  | 'text'      // 📝 Formatted documents, notes
-  | 'table'     // 📊 Rows/columns, structured data
-  | 'form'      // 📋 Interactive input fields
-  | 'code'      // 💻 SCL or Python execution
-  | 'media'     // 🖼 Images, video, embedded
-  | 'tool'      // 🛠 Widgets, calculators, utilities
-  | 'composite' // 📦 Contains other blocks
-  | 'reference' // 🔗 Points to another block
-
-type BlockState = 
-  | 'created'     // Just spawned
-  | 'idle'        // Waiting
-  | 'executing'   // Running code/triggers
-  | 'complete'    // Finished successfully
-  | 'error'       // Something went wrong
-  | 'paused'      // Suspended
-  | 'locked'      // Protected from edits
-  | 'hidden'      // Invisible but exists
-```
-
-**Block Type Specifications:**
-
-| Type | Emoji | Grid-Bound | Can Execute | Contains |
-|------|-------|------------|-------------|----------|
-| Text | 📝 | Yes | No | Markdown, rich text |
-| Table | 📊 | Yes | No | Cells, formulas |
-| Form | 📋 | Yes | Yes | Input fields, validation |
-| Code | 💻 | Yes | Yes | SCL or Python |
-| Media | 🖼 | Optional | No | Images, video, audio |
-| Tool | 🛠 | Yes | Yes | UI widgets, handlers |
-| Composite | 📦 | Yes | Yes | Nested blocks |
-| Reference | 🔗 | Yes | Yes | Proxy to target block |
-
----
-
-### 🐂🏛📍🔵 - Zip Code System.parti
-
-Semantic addresses for everything in Graph Parti.
-
-**Standard Zip (4 dials):**
-```
-┌───────┬───────┬───────┬───────┐
-│ Dial 1│ Dial 2│ Dial 3│ Color │
-│ Order │ Type  │ Axis  │ State │
-└───────┴───────┴───────┴───────┘
-```
-
-**District Zip (6 dials for parent containers):**
-```
-┌───────┬───────┬───────┬───────┬───────┬───────┐
-│ Order │ Type  │ Axis  │ Block │ Mod   │ Color │
-└───────┴───────┴───────┴───────┴───────┴───────┘
-```
-
-**Valid Zip Forms:**
-```
-🟡                    ← color only (bullet, status marker)
-🐂🟡                  ← order + color (phase + state)
-🐂🧲🟡                ← order + type + color (phase + action + state)
-🐂🧲🛒🟡              ← full zip (phase + action + direction + state)
-🏛🧈🔵                ← axis + block + color (lens + container + state)
-♨️🟢                  ← block + color (container + state)
-```
-
-**Zip as Filename Convention:**
-```
-🐂🛒🐬🟡 Subject.parti     ← Full zip + descriptive name
-🐂🧲🟡 Notes.parti         ← Partial zip + name
-🟡 Draft.parti            ← Color only + name
-```
-
-**Color Termination Rule:**
-- Color MUST be the last position in any zip with content
-- `🐂🧲🛒🟡` ✓ valid
-- `🐂🟡🧲🛒` ✗ invalid (color in middle)
-
----
-
-### 🐂🏛📍🔵 - District Model.parti
-
-Logical regions containing blocks, elements, and other districts.
-
-```typescript
-interface District {
-  id: DistrictId
-  name: string
-  zip: ZipCode
-  
+@@ -181,51 +181,51 @@ interface District {
   // Geometry
   bounds: Bounds           // Rectangle or polygon
   
@@ -203,7 +58,7 @@ interface District {
 
 **District Hierarchy:**
 ```
-🐂🏛🧈🔵 Core Architecture (PARENT)
+🐂📍🏛🧈➕🔵 Core Architecture (PARENT)
 ├── 🐂🏛📍🔵 Canvas primitives
 ├── 🐂🏛📍🔵 Block model
 ├── 🐂🏛📍🔵 Zip code system
@@ -229,27 +84,7 @@ interface Layer {
   opacity: number         // 0.0 - 1.0
   locked: boolean
   
-  // Content
-  cells: Map<CellCoord, Cell>
-  strokes: Stroke[]
-  blocks: BlockId[]
-}
-```
-
-**Trace Layers (Version):**
-- Each 🧮 commit creates a trace layer
-- Like architectural trace paper
-- Toggle visibility to compare versions
-- Copy from ghost to active
-
-**Sheet Layers (Depth):**
-- 7 Orders = 7 sheet layers
-- Each sheet adds complexity
-- Build on the sheet behind
-- 🖼 Palladian is the final experience layer
-
-**Page Layers (Sequential):**
-- Within blocks that support pages
+@@ -253,51 +253,51 @@ interface Layer {
 - Text blocks: pages of content
 - Code blocks: multiple scripts
 - Form blocks: multi-step forms
@@ -275,7 +110,7 @@ interface Layer {
 
 ---
 
-## 🐂🧲🧈🔵 SCL Language Core District
+## 🐂📍🧲🧈➕🔵 SCL Language Core District
 
 The Semantic Compression Language — 61 emojis as semantic anchors.
 
@@ -301,45 +136,7 @@ Latin/Greek roots for action verbs.
 
 | Emoji | Root | Meaning | Code Usage |
 |-------|------|---------|------------|
-| 🧲 | capio | capture, get, receive, contain | `🧲🪡 input` — pull from user |
-| 🐋 | duco | orchestrate, lead, conduct | `🐋🎼 arrangement` — compose elements |
-| 🤌 | facio | act, make, execute, create | `🤌🎯 task` — execute action |
-| 🧸 | fero | channel, carry, transfer | `🧸🛒 output` — carry to destination |
-| ✒️ | grapho | write, record, inscribe | `✒️📝 document` — write content |
-| 🦉 | logos | parse, reason, evaluate | `🦉 condition` — evaluate logic |
-| 🚀 | mitto | dispatch, send, emit | `🚀🛒 result` — send output |
-| 🦢 | plico | compress, fold, layer | `🦢🧬 layers` — merge/nest |
-| 📍 | pono | set, place, position | `📍 x 0` — set variable |
-| 👀 | specio | inspect, observe, query | `👀🎯 target` — examine block |
-| 🥨 | tendo | span, stretch, extend | `🥨📐 line` — draw connection |
-| 🪵 | teneo | pause, hold, retain | `🪵 1000` — wait ms |
-
----
-
-### 🐂🧲📍🔵 - Color System.parti
-
-**Color Context Vernacular v1.0** — Fixed 8 colors.
-
-| Color | Name | State | Register | Use When |
-|-------|------|-------|----------|----------|
-| ⚪ | Eudaimonia | clear | Clear, honest, neutral | Baseline, truth |
-| 🟡 | Play | exploring | Sandbox, draft, idea | Experimenting |
-| 🟠 | Connection | connected | Warm, relational, shared | Collaborating |
-| 🔴 | Passion | urgent | Urgent, intense, priority | Critical path |
-| ⚫ | Order | complete | Done, archived, resolved | Finished |
-| 🟣 | Magnificence | significant | Deep, significant, breakthrough | Important |
-| 🔵 | Planning | structured | Organized, methodical, spec'd | Designing |
-| 🟢 | Growth | active | Active, steady, progressing | Building |
-
-**Color Behavior:**
-- **Terminator**: Always last position in zips with content
-- **Standalone**: Complete statement when alone
-- **State marker**: Indicates current condition
-
----
-
-### 🐂🧲📍🔵 - Grammar Rules.parti
-
+@@ -343,56 +343,56 @@ Latin/Greek roots for action verbs.
 **Principle 1: Emoji Precedes Word**
 ```
 🐂 init          ← correct
@@ -365,12 +162,12 @@ Every complete thought ends with a color. Colors mark state.
 🟡              ← valid (idea, untagged)
 🐂🟡            ← valid (foundation idea)
 🐂🏛🟡          ← valid (foundation structure idea)
-🐂🏛🧈🟡        ← valid (foundation structure core idea)
+🐂📍🏛🧈➕🟡        ← valid (foundation structure core idea)
 ```
 
 ---
 
-## 🐂🔨🧈🔵 .parti File Format District
+## 🐂📍🔨🧈➕🔵 .parti File Format District
 
 ### 🐂🔨📍🔵 - File Structure.parti
 
@@ -396,9 +193,7 @@ Every complete thought ends with a color. Colors mark state.
 │   └── layers: LayerData[]
 ├── logic
 │   ├── connections: ConnectionData[]
-│   ├── triggers: TriggerData[]
-│   └── variables: VariableData[]
-├── state
+@@ -402,129 +402,129 @@ Every complete thought ends with a color. Colors mark state.
 │   ├── runtime: RuntimeState
 │   └── history: ActionHistory[]
 ├── tools
@@ -424,7 +219,7 @@ Every complete thought ends with a color. Colors mark state.
 
 ---
 
-## 🐂🪐🧈🔵 Core Principles District
+## 🐂📍🪐🧈➕🔵 Core Principles District
 
 ### 🐂🪐📍🔵 - Design Philosophy.parti
 
@@ -472,7 +267,7 @@ Graph Parti ≈ Block Party 🎉
 
 ---
 
-## 🐂🧬🧈🔵 Block Lifecycle District
+## 🐂📍🧬🧈➕🔵 Block Lifecycle District
 
 ### 🐂🧬📍🔵 - Lifecycle States.parti
 
@@ -517,11 +312,11 @@ Graph Parti ≈ Block Party 🎉
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| Core Architecture | 🐂🏛🧈🔵 | 5 | ✅ Complete |
-| SCL Language Core | 🐂🧲🧈🔵 | 4 | ✅ Complete |
-| .parti File Format | 🐂🔨🧈🔵 | 2 | ✅ Complete |
-| Core Principles | 🐂🪐🧈🔵 | 2 | ✅ Complete |
-| Block Lifecycle | 🐂🧬🧈🔵 | 1 | ✅ Complete |
+| Core Architecture | 🐂📍🏛🧈➕🔵 | 5 | ✅ Complete |
+| SCL Language Core | 🐂📍🧲🧈➕🔵 | 4 | ✅ Complete |
+| .parti File Format | 🐂📍🔨🧈➕🔵 | 2 | ✅ Complete |
+| Core Principles | 🐂📍🪐🧈➕🔵 | 2 | ✅ Complete |
+| Block Lifecycle | 🐂📍🧬🧈➕🔵 | 1 | ✅ Complete |
 
 **Total: 14 items across 5 districts**
 

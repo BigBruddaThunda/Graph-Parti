@@ -6,7 +6,7 @@
 
 ---
 
-## 🦋🏛🧈🟢 Canvas Features District
+## 🦋📍🏛🧈➕🟢 Canvas Features District
 
 Core canvas interaction and manipulation features.
 
@@ -32,106 +32,7 @@ interface ViewportControls {
   
   // Rotation (optional)
   rotation: {
-    enabled: boolean
-    gesture: 'two-finger-rotate'
-    snap: [0, 90, 180, 270]  // Snap angles
-  }
-}
-```
-
-**Zoom Level Behaviors:**
-
-| Zoom | Visual Detail | Interaction |
-|------|---------------|-------------|
-| 0.1x - 0.5x | Colored rectangles + zip emoji only | Navigation only |
-| 0.5x - 1x | Rectangle + title + zip | Organize mode |
-| 1x - 2x | Full content, normal | Standard editing |
-| 2x - 5x | Full + details + controls | Detailed editing |
-| 5x - 10x | Full fidelity, editing UI | Precision work |
-
----
-
-### 🦋🏛📍🟢 - Grid Toggle.parti
-
-```typescript
-interface GridSystem {
-  // Visibility
-  visible: boolean
-  toggleKey: 'g'           // Keyboard shortcut
-  toggleGesture: 'triple-tap'
-  
-  // Style
-  style: {
-    color: '#e0e0e0'
-    opacity: 0.5
-    lineWidth: 1
-  }
-  
-  // Adaptive
-  fadeAtZoom: 0.3          // Fade out when zoomed far
-  autoHide: true           // Hide when not needed
-}
-```
-
-**Grid Philosophy:**
-- Structure without tyranny
-- Grid disappears when not needed
-- Always there when you need precision
-
----
-
-### 🦋🏛📍🟢 - Selection System.parti
-
-```typescript
-interface SelectionSystem {
-  // Selection modes
-  modes: {
-    single: 'tap'
-    region: 'drag-lasso'
-    additive: 'shift-click' | 'ctrl-click'
-    subtractive: 'alt-click'
-  }
-  
-  // Selection types
-  types: ['cell', 'stroke', 'block', 'district', 'mixed']
-  
-  // Visual feedback
-  highlight: {
-    color: '#4a90d9'
-    opacity: 0.3
-    borderWidth: 2
-    animate: true
-  }
-  
-  // Actions on selection
-  actions: ['move', 'resize', 'delete', 'group', 'zip', 'copy', 'paste']
-}
-```
-
-**Selection Gestures:**
-
-| Gesture | Action |
-|---------|--------|
-| Tap | Select single element |
-| Drag | Lasso select region |
-| Shift + click | Add to selection |
-| Ctrl/Cmd + click | Toggle in selection |
-| Double-tap | Select block + enter edit |
-| Long-press | Context menu |
-
----
-
-### 🦋🏛📍🟢 - Undo System.parti
-
-```typescript
-interface UndoSystem {
-  stackSize: 50            // MAX_UNDO_STACK
-  
-  // Action types that add to stack
-  destructiveActions: [
-    'create',
-    'delete',
-    'move',
+@@ -135,51 +135,51 @@ interface UndoSystem {
     'resize',
     'edit',
     'zip-change',
@@ -157,7 +58,7 @@ interface UndoSystem {
 
 ---
 
-## 🦋🔨🧈🟢 Input Features District
+## 🦋📍🔨🧈➕🟢 Input Features District
 
 ### 🦋🔨📍🟢 - Double-Tap to Type.parti
 
@@ -183,107 +84,7 @@ interface TextInput {
 **Why Double-Tap:**
 - Prevents accidental keyboard popup during pan
 - Intentional action = intentional result
-- Mobile-first consideration
-
----
-
-### 🦋🔨📍🟢 - Stylus Drawing.parti
-
-```typescript
-interface DrawingSystem {
-  // Input
-  supports: ['stylus', 'finger', 'mouse']
-  pressureSensitive: true
-  tiltSensitive: true      // For advanced styluses
-  
-  // Canvas behavior
-  canvasLocksDuringDraw: true
-  
-  // Stroke properties
-  stroke: {
-    smoothing: 0.5         // 0-1, curve smoothing
-    minDistance: 2         // Min points per pixel
-    maxPoints: 1000        // Per stroke
-  }
-  
-  // Tools
-  tools: ['pen', 'pencil', 'marker', 'eraser']
-}
-```
-
-**Stroke Data Structure:**
-```typescript
-interface Stroke {
-  id: StrokeId
-  points: Point[]          // {x, y, pressure, timestamp}
-  style: {
-    color: Color
-    width: number
-    opacity: number
-  }
-  bounds: Bounds
-}
-```
-
----
-
-### 🦋🔨📍🟢 - Paste Handling.parti
-
-```typescript
-interface PasteSystem {
-  // Auto-detection
-  detectContentType: true
-  
-  // Formatting
-  columnWidth: 40          // COLUMN_WIDTH for text wrap
-  autoFormat: true
-  
-  // Margins
-  margin: {
-    top: 1     // cells
-    bottom: 1
-    left: 1
-    right: 1
-  }
-  
-  // Block creation
-  createBlock: true        // Wrap paste in block
-  blockType: 'auto'        // Detect from content
-}
-```
-
-**Paste Flow:**
-```
-Paste Event
-    ↓
-Detect Content Type
-    ↓
-Create Appropriate Block
-    ↓
-Format Content
-    ↓
-Position at Cursor/Selection
-    ↓
-Add Margins
-```
-
----
-
-### 🦋🔨📍🟢 - Text Block Modes.parti
-
-Two modes of text in Graph Parti:
-
-**Cell Text:**
-- Character-per-cell
-- Grid-perfect alignment
-- Use for: labels, annotations, short text
-- Fixed to grid coordinates
-
-**Block Text:**
-- Formatted document inside grid container
-- Proportional font
-- Use for: long-form content, markdown, notes
-- Container snaps to grid, content flows freely
+@@ -287,51 +287,51 @@ Two modes of text in Graph Parti:
 
 ```typescript
 interface TextModes {
@@ -309,7 +110,7 @@ interface TextModes {
 
 ---
 
-## 🦋✒️🧈🟢 Eraser Tools District
+## 🦋📍✒️🧈➕🟢 Eraser Tools District
 
 ### 🦋✒️📍🟢 - Line Eraser.parti
 
@@ -335,33 +136,7 @@ interface LineEraser {
 - Stylus/brush mode
 - Drag across strokes to erase
 - Only affects drawn lines, not text
-
----
-
-### 🦋✒️📍🟢 - Text Eraser.parti
-
-```typescript
-interface TextEraser {
-  // Mode
-  mode: 'strikethrough'
-  
-  // Behavior
-  gesture: 'drag-across-letters'
-  effect: 'delete-on-release'
-  
-  // Visual
-  strikethroughStyle: {
-    color: '#ff0000'
-    width: 2
-  }
-  
-  // Comparison
-  fasterThan: 'select-backspace'
-}
-```
-
-**Why It Works:**
-- Like crossing out words on paper
+@@ -365,51 +365,51 @@ interface TextEraser {
 - Natural gesture
 - Faster than select → backspace
 
@@ -387,7 +162,7 @@ interface SnippetEraser {
 
 ---
 
-## 🦋🧲🧈🟢 Block Features District
+## 🦋📍🧲🧈➕🟢 Block Features District
 
 ### 🦋🧲📍🟢 - Block Creation.parti
 
@@ -413,83 +188,7 @@ interface BlockCreation {
     reference: 'target → proxy'
   }
   
-  // Defaults
-  defaultSize: { width: 4, height: 4 }
-  defaultZip: '🟡'
-  defaultPosition: 'cursor-location'
-}
-```
-
----
-
-### 🦋🧲📍🟢 - Block Editing.parti
-
-```typescript
-interface BlockEditing {
-  // Move
-  move: {
-    gesture: 'drag'
-    snap: 'grid'
-    constraints: 'collision-check'
-  }
-  
-  // Resize
-  resize: {
-    gesture: 'drag-edge-or-corner'
-    snap: 'grid'
-    minSize: { width: 1, height: 1 }
-  }
-  
-  // Edit content
-  editContent: {
-    gesture: 'double-click'
-    mode: 'type-specific'
-  }
-  
-  // Change zip
-  changeZip: {
-    gesture: 'dial-picker'
-    location: 'center-of-selection'
-  }
-  
-  // Lock/unlock
-  lock: {
-    gesture: 'context-menu' | 'lock-button'
-    confirmation: false
-  }
-}
-```
-
----
-
-### 🦋🧲📍🟢 - Block Full-Screen.parti
-
-```typescript
-interface FullScreenMode {
-  // Activation
-  trigger: 'double-click-block'
-  
-  // Behavior
-  focusMode: true
-  differentFromZoom: true
-  
-  // UI changes
-  toolbar: 'document-specific'
-  context: 'block-only'
-  
-  // Exit
-  exitGesture: 'escape-key' | 'double-click-outside'
-}
-```
-
-**Full-Screen vs Zoom:**
-- Zoom: Still see surrounding context
-- Full-screen: Block becomes entire viewport
-- Different toolbars appear
-
----
-
-### 🦋🧲📍🟢 - Block Scaling.parti
+@@ -493,51 +493,51 @@ interface FullScreenMode {
 
 ```typescript
 interface BlockScaling {
@@ -515,7 +214,7 @@ interface BlockScaling {
 
 ---
 
-## 🦋📍🧈🟢 Zip Features District
+## 🦋📍📍🧈➕🟢 Zip Features District
 
 ### 🦋📍📍🟢 - Dial Picker.parti
 
@@ -541,50 +240,7 @@ interface DialPicker {
 ---
 
 ### 🦋📍📍🟢 - Zip Evolution.parti
-
-Zips grow over time as understanding deepens:
-
-```
-Day 1:  [_ _ _ 🟡]      ← just color (exploring)
-Day 7:  [🌱 _ _ 🟡]     ← add dial 1 (category)
-Day 14: [🌱 📝 _ 🟡]    ← add dial 2 (type)
-Day 30: [🌱 📝 🏛 🔵]   ← full zip + color change (structured)
-```
-
-**Evolution Philosophy:**
-- Start simple, grow complex
-- Color changes as state changes
-- Zips tell the story of development
-
----
-
-### 🦋📍📍🟢 - Zip Queries.parti
-
-```typescript
-interface ZipQuery {
-  // Query patterns
-  patterns: {
-    allUrgent: '[_ _ _ 🔴]'
-    allInitPhase: '[🐂 _ _ _]'
-    allCapture: '[_ 🧲 _ _]'
-    allStructure: '[_ _ 🏛 _]'
-  }
-  
-  // Results
-  highlight: true           // Highlight matching on canvas
-  select: true              // Select all matches
-  navigate: true            // Jump to first match
-  
-  // Wildcards
-  wildcard: '_'             // Matches any
-}
-```
-
-**Query Examples:**
-```
-[_ _ _ 🔴]     → All urgent items
-[🐂 _ _ _]     → All foundation phase
-[_ 🧲 _ _]     → All capture operations
+@@ -588,51 +588,51 @@ interface ZipQuery {
 [_ _ 🏛 _]     → All structure lens
 [🐂 🧲 🏛 🔵]  → Exact match
 ```
@@ -610,7 +266,7 @@ interface SnapToZip {
 
 ---
 
-## 🦋🛠🧈🟢 Tool Building District
+## 🦋📍🛠🧈➕🟢 Tool Building District
 
 ### 🦋🛠📍🟢 - Tool from Selection.parti
 
@@ -636,31 +292,7 @@ interface ToolFromSelection {
 ---
 
 ### 🦋🛠📍🟢 - AI Tool Generation.parti
-
-```typescript
-interface AIToolGeneration {
-  // Prompt
-  prompt: string            // "Make me a calculator"
-  
-  // Generation
-  aiBuilds: 'SCL + Python'
-  output: 'Tool block on canvas'
-  
-  // Iteration
-  iterate: 'feedback-loop'
-  refine: 'natural-language'
-  
-  // Examples
-  examples: [
-    'Make me a calculator',
-    'Create a todo list widget',
-    'Build a unit converter'
-  ]
-}
-```
-
----
-
+@@ -664,80 +664,80 @@ interface AIToolGeneration {
 ### 🦋🛠📍🟢 - Slash Commands.parti
 
 ```typescript
@@ -686,7 +318,7 @@ interface SlashCommands {
 
 ---
 
-## 🦋🪜🧈🟡 Development Roadmap District
+## 🦋📍🪜🧈➕🟡 Development Roadmap District
 
 ### 🦋🪜📍🟡 - Phase Progress.parti
 
@@ -728,13 +360,13 @@ interface SlashCommands {
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| Canvas Features | 🦋🏛🧈🟢 | 4 | ✅ Complete |
-| Input Features | 🦋🔨🧈🟢 | 4 | ✅ Complete |
-| Eraser Tools | 🦋✒️🧈🟢 | 3 | ✅ Complete |
-| Block Features | 🦋🧲🧈🟢 | 4 | ✅ Complete |
-| Zip Features | 🦋📍🧈🟢 | 4 | ✅ Complete |
-| Tool Building | 🦋🛠🧈🟢 | 3 | ✅ Complete |
-| Development Roadmap | 🦋🪜🧈🟡 | 1 | 🟡 Active |
+| Canvas Features | 🦋📍🏛🧈➕🟢 | 4 | ✅ Complete |
+| Input Features | 🦋📍🔨🧈➕🟢 | 4 | ✅ Complete |
+| Eraser Tools | 🦋📍✒️🧈➕🟢 | 3 | ✅ Complete |
+| Block Features | 🦋📍🧲🧈➕🟢 | 4 | ✅ Complete |
+| Zip Features | 🦋📍📍🧈➕🟢 | 4 | ✅ Complete |
+| Tool Building | 🦋📍🛠🧈➕🟢 | 3 | ✅ Complete |
+| Development Roadmap | 🦋📍🪜🧈➕🟡 | 1 | 🟡 Active |
 
 **Total: 23 items across 7 districts**
 

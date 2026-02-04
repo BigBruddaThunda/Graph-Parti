@@ -6,7 +6,7 @@
 
 ---
 
-## ⛽🏛🧈🔵 Structural Constraints District
+## ⛽📍🏛🧈➕🔵 Structural Constraints District
 
 Rules governing the physical structure of the canvas and its contents.
 
@@ -32,83 +32,7 @@ interface GridConstraints {
 ```
 
 **Grid Rules:**
-1. Blocks snap to grid (integer cell coordinates only)
-2. Minimum block size: 1×1 cell
-3. Maximum block size: unlimited
-4. Cells occupied by blocks can overlap (z-order determines visibility)
-5. Strokes float freely (no grid snap)
-
----
-
-### ⛽🏛📍🔵 - Zip Validation.parti
-
-```typescript
-interface ZipValidation {
-  // Structure rules
-  colorMustTerminate: boolean   // Always true
-  maxDialCount: number          // 8 (4 standard + 4 extended)
-  minDialCount: number          // 1 (color only)
-  
-  // Valid emoji sets
-  validOrders: ['🐂', '⛽', '🦋', '🏟', '🌾', '⚖', '🖼']
-  validTypes: ['🧲', '🐋', '🤌', '🧸', '✒️', '🦉', '🚀', '🦢', '📍', '👀', '🥨', '🪵']
-  validModifiers: ['🛒', '🪡', '🍗', '➕', '➖']
-  validAxes: ['🏛', '🔨', '🌹', '🪐', '⌛', '🐬']
-  validColors: ['⚪', '🟡', '🟠', '🔴', '⚫', '🟣', '🔵', '🟢']
-  validBlocks: ['♨️', '🎯', '🔢', '🧈', '🫀', '▶️', '🎼', '♟️', '🪜', '🌎', '🎱', '🌋', '🪞', '🗿', '🛠', '🧩', '🪫', '🏖', '🏗', '🧬', '🚂', '🔠']
-}
-```
-
-**Zip Validation Rules:**
-
-| Rule | Valid | Invalid |
-|------|-------|---------|
-| Color terminates | `🐂🧲🛒🟡` | `🐂🟡🧲🛒` |
-| Partial zips OK | `🟡`, `🐂🟡` | — |
-| Only canonical emojis | `🐂📍🔵` | `🎉📍🔵` |
-| Color always last | `🏛🧈🔵` | `🔵🏛🧈` |
-
----
-
-### ⛽🏛📍🔵 - Lock Rules.parti
-
-```typescript
-interface LockState {
-  locked: boolean
-  
-  // When locked: content protection
-  contentEditable: false
-  positionMutable: false
-  sizeMutable: false
-  deletable: false
-  
-  // When locked: still active
-  connectionsTrigger: true
-  codeExecutes: true
-  visible: true
-}
-```
-
-**Lock Behavior Matrix:**
-
-| Action | Unlocked | Locked |
-|--------|----------|--------|
-| Edit content | ✅ Yes | ❌ No |
-| Move block | ✅ Yes | ❌ No |
-| Resize block | ✅ Yes | ❌ No |
-| Delete block | ✅ Yes | ❌ No |
-| Connections fire | ✅ Yes | ✅ Yes |
-| Code executes | ✅ Yes | ✅ Yes |
-| Change zip | ✅ Yes | ❌ No |
-
-**Unlock Override:**
-- Double-click + hold = move locked items (auto-unlock first)
-- Context menu → "Unlock" required for other edits
-
----
-
-### ⛽🏛📍🔵 - Layer Collision.parti
-
+@@ -112,51 +112,51 @@ interface LockState {
 ```typescript
 interface LayerCollisionRules {
   // Main layer rules
@@ -134,7 +58,7 @@ interface LayerCollisionRules {
 
 ---
 
-## ⛽🔨🧈🔵 Input Validation District
+## ⛽📍🔨🧈➕🔵 Input Validation District
 
 ### ⛽🔨📍🔵 - Paste Detection.parti
 
@@ -160,56 +84,7 @@ interface PasteDetection {
     table: /\t|\n.*\t/           // Tabs or multiline with tabs
     markdown: /#{1,6}\s|```|\[.*\]\(.*\)/  // Headers, code blocks, links
     json: /^\s*[\{\[]/          // Starts with { or [
-    url: /^https?:\/\//          // HTTP(S) protocol
-    image: /^data:image/         // Base64 image
-  }
-}
-```
-
----
-
-### ⛽🔨📍🔵 - File Type Support.parti
-
-**Import Formats:**
-
-| Format | Target Block | Conversion |
-|--------|--------------|------------|
-| .md | 📝 Text Block | Render markdown |
-| .txt | 📝 Text Block | Plain text |
-| .docx | 📝 Text Block | Convert to markdown |
-| .pdf | 🖼 Media Block | Display or extract text |
-| .json | 💻 Code Block | Pretty print |
-| .csv/.xlsx | 📊 Table Block | Parse rows/columns |
-| .png/.jpg/.gif | 🖼 Media Block | Embed |
-| .svg | 🖼 Media Block | Render vector |
-
-**Export Formats:**
-
-| Source | Format | Output |
-|--------|--------|--------|
-| Any viewport | .png | Screenshot |
-| Any viewport | .pdf | Vector output |
-| Text Block | .md | Markdown |
-| Table Block | .csv | Comma-separated |
-| Code Block | .py/.js | Source file |
-| Full document | .parti | Native format |
-
----
-
-### ⛽🔨📍🔵 - Block Validation.parti
-
-```typescript
-function validateBlock(block: Block): ValidationResult {
-  const errors: string[] = []
-  
-  // Required fields
-  if (!block.id) errors.push('Missing id')
-  if (!block.type) errors.push('Missing type')
-  if (!Object.values(BlockType).includes(block.type)) {
-    errors.push(`Invalid type: ${block.type}`)
-  }
-  
-  // Size constraints
+@@ -213,51 +213,51 @@ function validateBlock(block: Block): ValidationResult {
   if (block.size.width < 1) errors.push('Width must be >= 1')
   if (block.size.height < 1) errors.push('Height must be >= 1')
   
@@ -235,7 +110,7 @@ function validateBlock(block: Block): ValidationResult {
 
 ---
 
-## ⛽🦉🧈🔵 SCL Syntax Validation District
+## ⛽📍🦉🧈➕🔵 SCL Syntax Validation District
 
 ### ⛽🦉📍🔵 - Statement Structure.parti
 
@@ -261,35 +136,7 @@ function validateBlock(block: Block): ValidationResult {
 ---
 
 ### ⛽🦉📍🔵 - Expression Rules.parti
-
-**Valid Expression Patterns:**
-
-| Pattern | Example | Meaning |
-|---------|---------|---------|
-| `[Order] [Type] [var] [value]` | `🐂📍 x 0` | Initialize variable |
-| `[Type] [Modifier] [var]` | `🧲🪡 name` | Capture input |
-| `[Type] [Modifier] [expression]` | `🚀🛒 result` | Output expression |
-| `[Modifier] [var] [value]` | `➕ count 1` | Arithmetic operation |
-| `[Type] [condition]` | `🦉 x > 10` | Evaluate condition |
-| `[Order] [expression] ↳` | `🦋 items ↳` | Loop over items |
-
-**Invalid Patterns:**
-```scl
-🐂🟡 x 0          ← Color in middle (invalid)
-📍 x              ← Missing order or type
-🧲🪡              ← Missing operand
-```
-
----
-
-### ⛽🦉📍🔵 - Type Checking.parti
-
-```typescript
-interface TypeSystem {
-  // Variable types
-  primitiveTypes: ['number', 'string', 'boolean', 'null', 'undefined']
-  complexTypes: ['list', 'map', 'block', 'connection']
-  
+@@ -293,51 +293,51 @@ interface TypeSystem {
   // Type checking rules
   rules: {
     '➕➖': ['number', 'number'] → 'number'    // Arithmetic
@@ -315,7 +162,7 @@ interface TypeSystem {
 
 ---
 
-## ⛽🌹🧈🔵 Connection Validation District
+## ⛽📍🌹🧈➕🔵 Connection Validation District
 
 ### ⛽🌹📍🔵 - Trigger Types.parti
 
@@ -341,23 +188,7 @@ interface Trigger {
   action: Action
   target: Target
 }
-```
-
----
-
-### ⛽🌹📍🔵 - Condition Structure.parti
-
-```typescript
-interface Condition {
-  type: 'simple' | 'compound'
-  
-  // For simple conditions
-  expression?: SCLExpression
-  
-  // For compound conditions
-  operator?: 'and' | 'or' | 'not'
-  children?: Condition[]
-}
+@@ -361,95 +361,95 @@ interface Condition {
 
 // Examples:
 // Simple: 🦉 score > 10
@@ -383,7 +214,7 @@ Valid action types for connections:
 
 ---
 
-## ⛽⌛🧈🟡 Performance Constraints District
+## ⛽📍⌛🧈➕🟡 Performance Constraints District
 
 ### ⛽⌛📍🟡 - Scale Limits.parti
 
@@ -427,7 +258,7 @@ interface FileSizeConstraints {
 
 ---
 
-## ⛽🌋🧈🔵 Error Taxonomy District
+## ⛽📍🌋🧈➕🔵 Error Taxonomy District
 
 ### ⛽🌋📍🔵 - Error Types.parti
 
@@ -453,8 +284,7 @@ interface GraphPartiError {
 **Error Codes:**
 
 | Code | Category | Meaning |
-|------|----------|---------|
-| SCL-001 | syntax | Invalid zip format |
+@@ -458,37 +458,37 @@ interface GraphPartiError {
 | SCL-002 | syntax | Color not at end |
 | SCL-003 | syntax | Unknown emoji |
 | VAL-001 | validation | Block size too small |
@@ -480,12 +310,12 @@ interface GraphPartiError {
 
 | District | Zip | Items | Status |
 |----------|-----|-------|--------|
-| Structural Constraints | ⛽🏛🧈🔵 | 4 | ✅ Complete |
-| Input Validation | ⛽🔨🧈🔵 | 3 | ✅ Complete |
-| SCL Syntax Validation | ⛽🦉🧈🔵 | 3 | ✅ Complete |
-| Connection Validation | ⛽🌹🧈🔵 | 3 | ✅ Complete |
-| Performance Constraints | ⛽⌛🧈🟡 | 2 | ✅ Complete |
-| Error Taxonomy | ⛽🌋🧈🔵 | 1 | ✅ Complete |
+| Structural Constraints | ⛽📍🏛🧈➕🔵 | 4 | ✅ Complete |
+| Input Validation | ⛽📍🔨🧈➕🔵 | 3 | ✅ Complete |
+| SCL Syntax Validation | ⛽📍🦉🧈➕🔵 | 3 | ✅ Complete |
+| Connection Validation | ⛽📍🌹🧈➕🔵 | 3 | ✅ Complete |
+| Performance Constraints | ⛽📍⌛🧈➕🟡 | 2 | ✅ Complete |
+| Error Taxonomy | ⛽📍🌋🧈➕🔵 | 1 | ✅ Complete |
 
 **Total: 16 items across 6 districts**
 
