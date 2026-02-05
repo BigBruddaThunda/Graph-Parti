@@ -8,6 +8,8 @@ This playbook defines a practical automation loop for Graph Parti using the Ralp
 - Use the Ralph Loop as an automated, repeatable pipeline: ingest repo content → audit/context-scan → classify into Orders/districts and assign SCL zip codes → generate or update working documents (.md/.parti stubs) → create tasks (issues/PRs) with zip-coded scope → run automated validators/linters → iterate.
 - Run that pipeline with a Codex/ChatGPT agent (via OpenAI API or a GitHub-integrated bot) plus lightweight automation (scripts + GitHub Actions) so the model executes “loops” and produces human-reviewable outputs.
 
+**Operational directive (adopted):** We will use the Ralph Loop as the standard automation pipeline for Graph Parti. Each iteration must follow the ingest → audit → classify → generate → task → validate → iterate sequence, with results captured in artifacts that are reviewable and traceable via zip codes.
+
 ---
 
 ## 1) High-Level Architecture of the Orchestration
