@@ -210,3 +210,60 @@ class PolylineTool(Tool):
             return
         painter.setPen(self._preview_pen)
         painter.drawPath(self._path(include_cursor=True))
+
+
+class SelectTool(Tool):
+    name = "select"
+
+    def reset(self) -> None:
+        self._mode = None       # None | "move" | "band"
+        self._anchor = None
+        self._orig: dict = {}
+        self._band_start = None
+        self._band_cur = None
+        self._moved = False
+
+    def on_press(self, p: QPointF) -> None:
+        scene = self.canvas.scene()
+        pick = self.canvas.pick_item(p)
+        if pick is not None:
+            if not pick.isSelected():
+                scene.clearSelection()
+                pick.setSelected(True)
+            self._mode = "move"
+            self._anchor = QPointF(p)
+            self._moved = False
+            self._orig = {it: it.pos() for it in scene.selectedItems()}
+        else:
+            scene.clearSelection()
+            self._mode = "band"
+            self._band_start = QPointF(p)
+            self._band_cur = QPointF(p)
+
+    def on_move(self, p: QPointF) -> None:
+        if self._mode == "move":
+            d = p - self._anchor
+            if d.x() or d.y():
+                self._moved = True
+            for it, orig in self._orig.items():
+                it.setPos(orig + d)
+        elif self._mode == "band":
+            self._band_cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        if self._mode == "move" and self._moved:
+            d = p - self._anchor
+            for it, orig in self._orig.items():  # rewind; the command re-applies it once
+                it.setPos(orig)
+            self.canvas.push_move(list(self._orig.keys()), d.x(), d.y())
+        elif self._mode == "band" and self._band_start is not None:
+            self.canvas.select_in_rect(QRectF(self._band_start, self._band_cur).normalized())
+        self.reset()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._mode == "band" and self._band_start is not None and self._band_cur is not None:
+            pen = QPen(QColor("#2464E5"))
+            pen.setCosmetic(True)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.drawRect(QRectF(self._band_start, self._band_cur).normalized())

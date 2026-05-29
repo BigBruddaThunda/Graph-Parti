@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QGraphicsView,
 )
 
+from .commands import AddItemCommand, DeleteItemsCommand, MoveItemsCommand
+
 
 class CanvasView(QGraphicsView):
     cursor_moved = Signal(QPointF, str)  # resolved scene position, snap kind
@@ -39,6 +41,7 @@ class CanvasView(QGraphicsView):
         self.snap_enabled = True
         self.document = None
         self.active_tool = None
+        self.undo_stack = None
         self._stroke_color = "#3C3C3C"
         self._panning = False
         self._pan_anchor = QPointF()
@@ -75,8 +78,35 @@ class CanvasView(QGraphicsView):
 
     def add_item(self, item: QGraphicsItem) -> None:
         layer = self.document.active_vector_layer() if self.document else None
-        if layer is not None:
+        if layer is None:
+            return
+        if self.undo_stack is not None:
+            self.undo_stack.push(AddItemCommand(layer, item))
+        else:
             layer.add_item(item)
+
+    # ----------------------------------------------------- selection / editing
+    def pick_item(self, scene_pos: QPointF):
+        """Topmost selectable item under SCENE_POS (pixel-accurate hit-test)."""
+        for it in self.items(self.mapFromScene(scene_pos)):
+            if bool(it.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable):
+                return it
+        return None
+
+    def push_move(self, items, dx: float, dy: float) -> None:
+        if self.undo_stack is not None and items:
+            self.undo_stack.push(MoveItemsCommand(items, dx, dy))
+
+    def select_in_rect(self, rect: QRectF) -> None:
+        self.scene().clearSelection()
+        for it in self.scene().items(rect):
+            if bool(it.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable):
+                it.setSelected(True)
+
+    def delete_selected(self) -> None:
+        items = self.scene().selectedItems()
+        if items and self.undo_stack is not None and self.document is not None:
+            self.undo_stack.push(DeleteItemsCommand(self.document, items))
 
     def _tool_active(self) -> bool:
         return self.active_tool is not None and self.dragMode() == QGraphicsView.DragMode.NoDrag
@@ -281,6 +311,10 @@ class CanvasView(QGraphicsView):
 
     # ------------------------------------------------------------------- keys
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            self.delete_selected()
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         elif self.active_tool is not None and event.key() in (

@@ -1,13 +1,13 @@
-"""Main window: canvas + tool toolbar + status bar. GRAPH PARTI steps 1-3."""
+"""Main window: canvas + tool toolbar + undo/redo + status bar. GRAPH PARTI 1-5."""
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QUndoStack
 from PySide6.QtWidgets import QGraphicsScene, QLabel, QMainWindow, QToolBar
 
 from .canvas_view import CanvasView
 from .document import Document
-from .tools import CircleTool, LineTool, PolylineTool, RectTool
+from .tools import CircleTool, LineTool, PolylineTool, RectTool, SelectTool
 
 _SCENE_HALF = 100_000
 _PAPER = QRectF(-1000, -800, 2000, 1600)
@@ -27,7 +27,11 @@ class MainWindow(QMainWindow):
         self.document = Document.default(self.scene, _PAPER)
         self.view.document = self.document
 
+        self.undo_stack = QUndoStack(self)
+        self.view.undo_stack = self.undo_stack
+
         self._tools = {
+            "select": SelectTool(self.view),
             "line": LineTool(self.view),
             "polyline": PolylineTool(self.view),
             "rect": RectTool(self.view),
@@ -53,6 +57,7 @@ class MainWindow(QMainWindow):
         self._tool_group.setExclusive(True)
         self._tool_actions: dict[str, QAction] = {}
         for key, label, shortcut in [
+            ("select", "Select", "V"),
             ("line", "Line", "L"),
             ("polyline", "Polyline", "P"),
             ("rect", "Rect", "R"),
@@ -76,6 +81,14 @@ class MainWindow(QMainWindow):
         self.snap_action.toggled.connect(self.view.set_snap_enabled)
         tb.addAction(self.snap_action)
 
+        tb.addSeparator()
+        undo_act = self.undo_stack.createUndoAction(self, "Undo")
+        undo_act.setShortcut(QKeySequence.StandardKey.Undo)
+        redo_act = self.undo_stack.createRedoAction(self, "Redo")
+        redo_act.setShortcut(QKeySequence.StandardKey.Redo)
+        tb.addAction(undo_act)
+        tb.addAction(redo_act)
+
     def _activate_tool(self, key: str) -> None:
         self.view.set_tool(self._tools[key])
         self.statusBar().showMessage(f"{key} tool", 1500)
@@ -88,7 +101,7 @@ class MainWindow(QMainWindow):
             w.setMinimumWidth(90)
             self.statusBar().addPermanentWidget(w)
         self.statusBar().showMessage(
-            "GRAPH PARTI — pick a tool · left-drag to draw · F9 snap · middle/space-drag pan"
+            "GRAPH PARTI — V select · L/P/R/C draw · Del removes · Ctrl+Z undo · F9 snap · mid/space-drag pan"
         )
 
     # ------------------------------------------------------------------ slots
