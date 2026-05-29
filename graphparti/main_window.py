@@ -92,9 +92,10 @@ class MainWindow(QMainWindow):
         )
 
     # ------------------------------------------------------------------ slots
-    def _on_cursor_moved(self, p: QPointF, snap_active: bool) -> None:
+    def _on_cursor_moved(self, p: QPointF, kind: str) -> None:
         self._coord_label.setText(f"X {p.x():.0f}   Y {p.y():.0f}")
-        self._snap_label.setText("SNAP" if snap_active else "free")
+        label = {"grid": "SNAP", "endpoint": "■ end", "midpoint": "▲ mid", "": "free"}
+        self._snap_label.setText(label.get(kind, "free"))
 
     def _on_zoom_changed(self, scale: float) -> None:
         self._zoom_label.setText(f"zoom {scale * 100:.0f}%")

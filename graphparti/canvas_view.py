@@ -1,38 +1,49 @@
-"""The canvas: grid, zoom, pan, grid-snap, and routing events to the active tool.
+"""The canvas: grid, zoom, pan, grid-snap + object-snap, and tool routing.
 
-GRAPH PARTI steps 1-3. Grid in drawBackground; tool rubber-band preview + snap
-marker in drawForeground. The view owns the document and the active tool, and feeds
-the tool scene-space snapped points. Item commits funnel through ``add_item`` (a
-single chokepoint that step 5 will wrap in a QUndoCommand).
+GRAPH PARTI steps 1-4. Snap resolution order while drawing: object-snap (endpoints
+& midpoints of existing geometry, within a pixel radius) takes priority, then
+grid-snap, then raw. Object-snap is the feature that makes it feel like CAD, so it
+gets distinct markers: a square for endpoints, a triangle for midpoints (green);
+the grid snap shows a red crosshair.
 """
 from __future__ import annotations
 
 import math
 
 from PySide6.QtCore import Qt, QLineF, QPointF, QRectF, Signal
-from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPen, QWheelEvent
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView
+from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPen, QPolygonF, QWheelEvent
+from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsLineItem,
+    QGraphicsPathItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsView,
+)
 
 
 class CanvasView(QGraphicsView):
-    cursor_moved = Signal(QPointF, bool)  # snapped scene position, snap_active
+    cursor_moved = Signal(QPointF, str)  # resolved scene position, snap kind
     zoom_changed = Signal(float)
 
     ZOOM_STEP = 1.15
     MIN_SCALE = 0.05
     MAX_SCALE = 40.0
+    OSNAP_PIXELS = 12.0
 
     def __init__(self, scene: QGraphicsScene, grid_spacing: int = 20, major_every: int = 5, parent=None) -> None:
         super().__init__(scene, parent)
         self.grid_spacing = grid_spacing
         self.major_every = major_every
         self.snap_enabled = True
-        self.document = None         # set by MainWindow
-        self.active_tool = None      # set via set_tool
+        self.document = None
+        self.active_tool = None
         self._stroke_color = "#3C3C3C"
         self._panning = False
         self._pan_anchor = QPointF()
         self._cursor_scene: QPointF | None = None
+        self._snap_kind = ""  # "", "grid", "endpoint", "midpoint"
 
         self.setMouseTracking(True)
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -44,7 +55,8 @@ class CanvasView(QGraphicsView):
 
         self._minor_color = QColor("#AECEE7")  # sky-blue notebook lines (minor)
         self._major_color = QColor("#7FB2D6")  # sky-blue (major, a touch stronger)
-        self._snap_color = QColor("#C1140C")   # red snap marker — pops on paper
+        self._grid_snap_color = QColor("#C1140C")   # red crosshair = grid snap
+        self._osnap_color = QColor("#1f7a1f")        # green square/triangle = object snap
 
     # --------------------------------------------------------- tools / document
     def set_tool(self, tool) -> None:
@@ -62,7 +74,6 @@ class CanvasView(QGraphicsView):
         self._stroke_color = color
 
     def add_item(self, item: QGraphicsItem) -> None:
-        """Commit a freshly drawn item to the active vector layer."""
         layer = self.document.active_vector_layer() if self.document else None
         if layer is not None:
             layer.add_item(item)
@@ -71,7 +82,8 @@ class CanvasView(QGraphicsView):
         return self.active_tool is not None and self.dragMode() == QGraphicsView.DragMode.NoDrag
 
     def _scene_pos(self, event: QMouseEvent) -> QPointF:
-        return self.snap_point(self.mapToScene(event.position().toPoint()))
+        point, _kind = self.resolve_snap(self.mapToScene(event.position().toPoint()))
+        return point
 
     # ----------------------------------------------------------------- snapping
     def set_snap_enabled(self, on: bool) -> None:
@@ -79,10 +91,70 @@ class CanvasView(QGraphicsView):
         self.viewport().update()
 
     def snap_point(self, p: QPointF) -> QPointF:
+        """Grid-only snap (nearest intersection, or P unchanged when off)."""
         if not self.snap_enabled:
             return QPointF(p)
         s = self.grid_spacing
         return QPointF(round(p.x() / s) * s, round(p.y() / s) * s)
+
+    def resolve_snap(self, raw: QPointF) -> tuple[QPointF, str]:
+        """Object-snap first, then grid-snap, then raw. Returns (point, kind)."""
+        osnap = self._nearest_osnap(raw)
+        if osnap is not None:
+            return osnap
+        if self.snap_enabled:
+            return self.snap_point(raw), "grid"
+        return QPointF(raw), ""
+
+    def _nearest_osnap(self, raw: QPointF) -> tuple[QPointF, str] | None:
+        if self.document is None or self.active_tool is None:
+            return None
+        radius = self.OSNAP_PIXELS / max(self.transform().m11(), 1e-6)
+        best: tuple[QPointF, str] | None = None
+        best_d = radius
+        for layer in self.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                for point, kind in self._osnap_candidates(item):
+                    d = QLineF(raw, point).length()
+                    if d <= best_d:
+                        best_d = d
+                        best = (point, kind)
+        return best
+
+    @staticmethod
+    def _mid(a: QPointF, b: QPointF) -> QPointF:
+        return QPointF((a.x() + b.x()) / 2.0, (a.y() + b.y()) / 2.0)
+
+    def _osnap_candidates(self, item) -> list[tuple[QPointF, str]]:
+        out: list[tuple[QPointF, str]] = []
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            out.append((item.mapToScene(ln.p1()), "endpoint"))
+            out.append((item.mapToScene(ln.p2()), "endpoint"))
+            out.append((item.mapToScene(self._mid(ln.p1(), ln.p2())), "midpoint"))
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            for c in (r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()):
+                out.append((item.mapToScene(c), "endpoint"))
+            cx, cy = (r.left() + r.right()) / 2.0, (r.top() + r.bottom()) / 2.0
+            for m in (QPointF(cx, r.top()), QPointF(r.right(), cy), QPointF(cx, r.bottom()), QPointF(r.left(), cy)):
+                out.append((item.mapToScene(m), "midpoint"))
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            cx, cy = (r.left() + r.right()) / 2.0, (r.top() + r.bottom()) / 2.0
+            out.append((item.mapToScene(QPointF(cx, cy)), "midpoint"))  # center
+            for q in (QPointF(r.left(), cy), QPointF(r.right(), cy), QPointF(cx, r.top()), QPointF(cx, r.bottom())):
+                out.append((item.mapToScene(q), "endpoint"))
+        elif isinstance(item, QGraphicsPathItem):
+            path = item.path()
+            verts = [QPointF(path.elementAt(i).x, path.elementAt(i).y) for i in range(path.elementCount())]
+            for v in verts:
+                out.append((item.mapToScene(v), "endpoint"))
+            for a, b in zip(verts, verts[1:]):
+                out.append((item.mapToScene(self._mid(a, b)), "midpoint"))
+        return out
 
     # --------------------------------------------------------------------- grid
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
@@ -114,13 +186,24 @@ class CanvasView(QGraphicsView):
         super().drawForeground(painter, rect)
         if self.active_tool is not None:
             self.active_tool.paint_preview(painter)
-        if self._cursor_scene is not None and self.snap_enabled:
-            p = self._cursor_scene
-            r = 5.0 / max(self.transform().m11(), 1e-6)
-            pen = QPen(self._snap_color); pen.setCosmetic(True); pen.setWidthF(1.5)
+        if self._cursor_scene is None or not self._snap_kind:
+            return
+        p = self._cursor_scene
+        r = 6.0 / max(self.transform().m11(), 1e-6)
+        if self._snap_kind == "grid":
+            pen = QPen(self._grid_snap_color); pen.setCosmetic(True); pen.setWidthF(1.5)
             painter.setPen(pen)
             painter.drawLine(QLineF(p.x() - r, p.y(), p.x() + r, p.y()))
             painter.drawLine(QLineF(p.x(), p.y() - r, p.x(), p.y() + r))
+        elif self._snap_kind == "endpoint":
+            pen = QPen(self._osnap_color); pen.setCosmetic(True); pen.setWidthF(2.0)
+            painter.setPen(pen)
+            painter.drawRect(QRectF(p.x() - r, p.y() - r, 2 * r, 2 * r))
+        elif self._snap_kind == "midpoint":
+            pen = QPen(self._osnap_color); pen.setCosmetic(True); pen.setWidthF(2.0)
+            painter.setPen(pen)
+            tri = QPolygonF([QPointF(p.x(), p.y() - r), QPointF(p.x() - r, p.y() + r), QPointF(p.x() + r, p.y() + r)])
+            painter.drawPolygon(tri)
 
     # ------------------------------------------------------------- zoom (wheel)
     def wheelEvent(self, event: QWheelEvent) -> None:
@@ -160,11 +243,12 @@ class CanvasView(QGraphicsView):
             vbar.setValue(int(vbar.value() - delta.y()))
             event.accept()
             return
-        snapped = self._scene_pos(event)
-        self._cursor_scene = snapped
-        self.cursor_moved.emit(snapped, self.snap_enabled)
+        point, kind = self.resolve_snap(self.mapToScene(event.position().toPoint()))
+        self._cursor_scene = point
+        self._snap_kind = kind
+        self.cursor_moved.emit(point, kind)
         if self.active_tool is not None:
-            self.active_tool.on_move(snapped)
+            self.active_tool.on_move(point)
         self.viewport().update()
         super().mouseMoveEvent(event)
 
@@ -191,6 +275,7 @@ class CanvasView(QGraphicsView):
 
     def leaveEvent(self, event) -> None:
         self._cursor_scene = None
+        self._snap_kind = ""
         self.viewport().update()
         super().leaveEvent(event)
 
