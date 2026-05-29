@@ -256,6 +256,11 @@ class CanvasView(QGraphicsView):
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
             return
+        if event.button() == Qt.MouseButton.RightButton and self.active_tool is not None:
+            self.active_tool.cancel()  # cancel any in-progress draw
+            self.viewport().update()
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton and self._tool_active():
             self.active_tool.on_press(self._scene_pos(event))
             self.viewport().update()

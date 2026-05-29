@@ -48,6 +48,10 @@ class Tool:
     def deactivate(self) -> None:
         self.reset()
 
+    def cancel(self) -> None:
+        """Abort any in-progress drawing (right-click)."""
+        self.reset()
+
     def reset(self) -> None:
         pass
 
@@ -175,8 +179,16 @@ class PolylineTool(Tool):
         self._cur = None
 
     def on_press(self, p: QPointF) -> None:
+        # Click back on the start vertex (>=3 points) closes into a polygon.
+        if len(self._pts) >= 3 and self._is_start(p):
+            self._finish(closed=True)
+            return
         self._pts.append(QPointF(p))
         self._cur = QPointF(p)
+
+    def _is_start(self, p: QPointF) -> bool:
+        eps = getattr(self.canvas, "grid_spacing", 20) * 0.5
+        return QLineF(p, self._pts[0]).length() <= eps
 
     def on_move(self, p: QPointF) -> None:
         self._cur = QPointF(p)
@@ -199,9 +211,12 @@ class PolylineTool(Tool):
             path.lineTo(self._cur)
         return path
 
-    def _finish(self) -> None:
+    def _finish(self, closed: bool = False) -> None:
         if len(self._pts) >= 2:
-            self._commit(QGraphicsPathItem(self._path(include_cursor=False)))
+            path = self._path(include_cursor=False)
+            if closed and len(self._pts) >= 3:
+                path.closeSubpath()
+            self._commit(QGraphicsPathItem(path))
         self.reset()
         self.canvas.viewport().update()
 
