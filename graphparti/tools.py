@@ -35,7 +35,7 @@ class Tool:
 
     def __init__(self, canvas) -> None:
         self.canvas = canvas
-        self._preview_pen = QPen(QColor("#2464E5"))
+        self._preview_pen = QPen(QColor("#9255E5"))
         self._preview_pen.setCosmetic(True)
         self._preview_pen.setWidthF(1.5)
         self._preview_pen.setStyle(Qt.PenStyle.DashLine)

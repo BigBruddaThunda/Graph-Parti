@@ -40,11 +40,11 @@ class CanvasView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.setBackgroundBrush(QColor("#1b1b1f"))
+        self.setBackgroundBrush(QColor("#F2EBD8"))  # warm sheep's-wool paper
 
-        self._minor_color = QColor("#2a2a31")
-        self._major_color = QColor("#3b3b46")
-        self._snap_color = QColor("#f7b731")
+        self._minor_color = QColor("#AECEE7")  # sky-blue notebook lines (minor)
+        self._major_color = QColor("#7FB2D6")  # sky-blue (major, a touch stronger)
+        self._snap_color = QColor("#C1140C")   # red snap marker — pops on paper
 
     # --------------------------------------------------------- tools / document
     def set_tool(self, tool) -> None:
