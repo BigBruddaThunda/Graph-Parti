@@ -52,7 +52,54 @@ halves — separable in code, unified in use.
 - Roundtable little-brother / big-brother + cloud model access (the Emacs-side
   system), tied in later.
 
+## Layout v2 — three vertical thirds (2026-05-30, architect notes)
+Supersedes the single-column base shape. The cockpit reads top-to-bottom as **three
+thirds**, all floating inside the color shell with **negative space (shell visible)**
+between every window.
+
+**Upper third — revelator + terminal** (two windows, *identical width*, centered with
+shell margin around them):
+- **Revelator** (top strip): thin, **single line**, **50-char budget**. Carries the
+  zip code + tail + bar actions → becomes the notification rail. Shell shows all around.
+- *(negative space)*
+- **Terminal** (fills the rest of the upper third): same width as the revelator. The
+  default output window. **5 buttons stacked on its right inner wall**; the **5th button
+  sits on the text-input row**. A thin break separates terminal output from the input
+  box. Input is a **single line that grows as you type**.
+- *(negative space before the middle ground)*
+
+**Middle third — work zone:**
+- **Parallel slider** (left) · **middle ground** (center) · **12-operator rail** (right).
+- The slider and the operator rail **scale to the middle-ground height** (as tall as the
+  middle ground, not the whole panel).
+- **Middle ground and terminal resize up/down together** — same behavior as the
+  cockpit↔canvas split. Dragging the boundary trades terminal height for middle-ground
+  height. (Two draggable boundaries total: cockpit↔canvas horizontal, terminal↔middle
+  vertical.)
+
+**Lower third — axis + instruments (thumb zone):**
+- **Axis row** moves down to the top of this third: `🏛 ⌛ 🔨 [Archideck] 🐬 🌹 🪐`
+  (split + copper plate spacing unchanged).
+- **Instruments** below, all one height; lower third split into **3 columns**:
+  - **Zip dial** — left **~2 columns**. *Much smaller* than the base shape: a compact
+    **4×3 box** (4 reels × prev/active/next), shaped like the steampunk reel reference.
+    Reels = **operator · axis · order · color** (confirmed 4). **Left edge flush** to the
+    revelator/middle-ground left wall.
+  - **Z-pad** — right column: **5 buttons in a box** (➕ up · ➖ down · 🛒 left · 🪡 right
+    · 🍗 center). **Right edge flush** to the right wall — bookends the dial's left-flush.
+- Placement = **general thumb location** (dial = left thumb, z-pad = right thumb).
+
+**To confirm at build time:**
+- "Z-pad right button in line with the left walls" → read as z-pad right edge flush to
+  the content's right wall (mirror of the dial's left-flush). Verify against the sketch.
+- **Parallel slider** behavior (what it scrubs) is undefined — stub as a vertical slider
+  for now; wiring deferred.
+
 ## Status (this build)
 Base shape only: split-pane host, color-shell tint, working 4-dial zip dial, zip
 field, 12 operators (F1–F12), axis row + copper plate, Z-pad. No wiring between the
 cockpit and the canvas yet — by design.
+
+**Layout v2 (above) is specced but NOT yet built** — current code is still the
+single-column base shape in `panel.py`. Next cockpit build = restructure into the
+three thirds.
