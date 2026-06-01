@@ -89,17 +89,28 @@ shell margin around them):
     · 🍗 center). **Right edge flush** to the right wall — bookends the dial's left-flush.
 - Placement = **general thumb location** (dial = left thumb, z-pad = right thumb).
 
-**To confirm at build time:**
-- "Z-pad right button in line with the left walls" → read as z-pad right edge flush to
-  the content's right wall (mirror of the dial's left-flush). Verify against the sketch.
-- **Parallel slider** behavior (what it scrubs) is undefined — stub as a vertical slider
-  for now; wiring deferred.
+**Confirmed at build (2026-05-31):**
+- Z-pad right edge flush to the content's right wall (bookends the dial's left-flush). ✓
+- Parallel slider stubbed as a vertical QSlider — wiring deferred to dual-mode spec below.
+
+## Parallel slider — dual-mode behavior (future, 2026-05-31)
+The slider has a **center-click button** and two modes:
+
+**Archideck-active mode:** the slider lives inside the middle ground and slides up/down
+within it (for workout program blocks / dropdown expanding windows / content blocks).
+
+**GRAPH PARTI–active mode:** when the canvas window is active, the slider **expands up the
+left side shell** of the cockpit, spanning the entire vertical length of the GRAPH PARTI
+window. Shows viewport position. Clicking the center button while graph-parti is active
+does NOT switch focus to the archideck — instead it pops out a **parallel bar in graph-parti**
+that slides up/down using grid/scale/slide steps. The bar is a **snap-target for stylus/pen**
+drawing (auto-snap to the bar to draw straight lines). Stylus and pen have different drawing
+behaviors — the bar accommodates both. Mobile/tablet: same principle, bar becomes the primary
+stylus guide for portrait-mode drawing.
 
 ## Status (this build)
-Base shape only: split-pane host, color-shell tint, working 4-dial zip dial, zip
-field, 12 operators (F1–F12), axis row + copper plate, Z-pad. No wiring between the
-cockpit and the canvas yet — by design.
-
-**Layout v2 (above) is specced but NOT yet built** — current code is still the
-single-column base shape in `panel.py`. Next cockpit build = restructure into the
-three thirds.
+**Layout v2 built (2026-05-31):** three-thirds cockpit in `panel.py` — revelator (thin
+single-line strip, toolbar-height) + terminal (output + input + 5 modifier buttons on right
+inner wall) / parallel slider (stub) + middle ground + 12-operator F1–F12 rail / axis row +
+compact 4-reel zip dial + z-pad. QSplitter between terminal and middle ground. Shell tint +
+working 4-dial zip display in revelator. No wiring between cockpit and canvas yet — by design.

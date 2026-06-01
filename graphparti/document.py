@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from PySide6.QtCore import QRectF
+from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem, QGraphicsScene
 
@@ -76,24 +76,46 @@ class VectorLayer(Layer):
 
 
 class RasterLayer(Layer):
-    def __init__(self, name: str, scene: QGraphicsScene, paper: QRectF) -> None:
+    def __init__(self, name: str, scene: QGraphicsScene, paper: QRectF,
+                 opacity: float = 1.0) -> None:
         super().__init__(name, "raster")
+        self._scene = scene
+        self._opacity = opacity
         pm = QPixmap(int(paper.width()), int(paper.height()))
         pm.fill(QColor(0, 0, 0, 0))  # transparent until painted (step 7)
         self.item = QGraphicsPixmapItem(pm)
         self.item.setOffset(paper.left(), paper.top())
+        self.item.setOpacity(opacity)
         scene.addItem(self.item)
         self.pixmap = pm
+        self._ref_images: list[QGraphicsPixmapItem] = []
+
+    def add_reference_image(self, pixmap: QPixmap, pos: QPointF) -> QGraphicsPixmapItem:
+        """Drop a reference image onto this layer at the given scene position."""
+        item = QGraphicsPixmapItem(pixmap)
+        item.setPos(pos)
+        item.setZValue(self.z_index)
+        item.setOpacity(self._opacity)
+        item.setVisible(self._visible)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        self._scene.addItem(item)
+        self._ref_images.append(item)
+        return item
 
     def set_visible(self, on: bool) -> None:
         self._visible = bool(on)
         self.item.setVisible(self._visible)
+        for img in self._ref_images:
+            img.setVisible(self._visible)
 
     def set_locked(self, on: bool) -> None:
         self._locked = bool(on)
 
     def apply_z(self) -> None:
         self.item.setZValue(self.z_index)
+        for img in self._ref_images:
+            img.setZValue(self.z_index)
 
 
 class Document:
@@ -127,8 +149,8 @@ class Document:
 
     @classmethod
     def default(cls, scene: QGraphicsScene, paper: QRectF) -> "Document":
-        """Open with a raster 'back' beneath a vector 'front'; front active."""
+        """Open with a raster 'parti' (15% opacity) beneath a vector 'trace'; trace active."""
         doc = cls(scene)
-        doc.add_layer(RasterLayer("back", scene, paper), active=False)
-        doc.add_layer(VectorLayer("front", scene), active=True)
+        doc.add_layer(RasterLayer("parti", scene, paper, opacity=0.50), active=False)
+        doc.add_layer(VectorLayer("trace", scene), active=True)
         return doc

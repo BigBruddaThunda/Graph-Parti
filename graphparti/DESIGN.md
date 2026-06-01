@@ -31,8 +31,40 @@ one is 6"):
   canvas free-text and the cockpit readout on the same measure.
 - Ruler: `12345678901234567890123456789012345678901234567890`
 
+## Shift-block drawing (planned, 2026-05-31)
+- **Hold Shift while drawing lines → auto-connect into a block.** Draw 10 lines (they may
+  connect or not), release Shift, click Select → all 10 move as one connected block.
+- Makes rectangles without the rectangle tool — draw 4 lines with Shift held, they form a
+  compound shape that selects/moves together.
+- Implementation: Shift-draw creates (or extends) a **compound path / block group** on the
+  active layer. Internally one `QGraphicsPathItem` built from multiple line sub-paths, or a
+  lightweight group that doesn't swallow per-item selection the way QGraphicsItemGroup does.
+
+## Trim tool (planned, 2026-05-31)
+- Like AutoCAD **trim / cut / fillet**: tap a line segment to trim at intersection points,
+  removing the unwanted portion. Works on layout lines on the grid.
+- Tap-and-trim — no selection step. Click the part you want gone, it's gone.
+- Future: fillet (round corners) and chamfer at intersections.
+
+## Text eraser (planned, 2026-05-31)
+- **Erase free text in cells** — slide/swipe over text to auto-delete without selecting.
+  Mass-redaction feel: drag across sentences, they disappear.
+- **Dual-layer erase**: the eraser distinguishes between:
+  - **Grid-snapped lines** (structural, locked to grid) — protected from accidental erase.
+  - **Free-form / unsnapped / natural-drawn lines** (pen/stylus sketches) — erasable.
+- Lets the architect sketch loose over gridded ideas and quick-erase / re-sketch without
+  disturbing the structural geometry. The tool knows which layer it's on.
+
+## Curve tools (future, 2026-05-31)
+- **Smart curve corrector** — draw curves freely with cursor click-and-drag, the tool
+  smooths/corrects the curve in real time. Works for both mouse and stylus.
+- **Curving trim tool** — trim arcs and curves the same way lines are trimmed at
+  grid/intersection boundaries. Cut arcs at crossings.
+- **Arc tool** — dedicated arc drawing (3-point arc, center-radius-angle, etc.).
+- These are stylus-thinking tools that work for mouse drawing too.
+
 ## Status
-Planned / captured 2026-05-30 — **not yet built**. Current canvas: infinite grid +
+Captured 2026-05-31 — **not yet built**. Current canvas: infinite grid +
 zoom/pan, snap (grid + object endpoints/midpoints), vector tools
 (line / polyline-with-close / rect / circle), select / move / delete + QUndoStack,
 warm-wool light theme + sky-blue wireframe grid + VG5000 font.

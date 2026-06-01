@@ -5,7 +5,7 @@
 > full cross-repo teleport lives in the home-base repo (`BigBruddaThunda/archideck`).
 
 **Architect:** Jake (Jacob Wilson Berry) · git `FounderCreator <jwberry234@gmail.com>` ·
-GitHub `BigBruddaThunda` · last updated **2026-05-30**
+GitHub `BigBruddaThunda` · last updated **2026-05-31** (session 2)
 
 ## What this is
 GRAPH PARTI = a precision hand-drafting desktop app (PySide6 / Qt6). One program, two halves
@@ -18,22 +18,36 @@ Run: `python main.py` (split-pane) · `python -m graphparti` (canvas only).
 Stack is a hard constraint — **Python 3.13 + PySide6**, venv at `.venv`. Light mode locked:
 sheep's-wool paper · sky-blue wireframe grid · **VG5000** font exactly.
 
-## Built (committed on `master`)
-Infinite grid + zoom/pan · grid + object snap (endpoints/midpoints) · vector tools
-(line / polyline-with-close / rect / circle) · select / move / delete + QUndoStack ·
-warm-wool light theme + sky-blue grid + VG5000 · split-pane host + portrait cockpit
-(zip field · 12-operator F1–F12 rail · axis row + copper [Archideck] plate · working 4-dial
-zip dial · Z-pad).
+## Built (session 1 + 2)
+**Environment:** Infinite 7×7 grid + zoom/pan · grid snap with dead zone (1/8) + object snap ·
+ortho lock (90/45/30/15°, separate from snap) · all measurements in grid units (1=1 cell).
 
-## Next (specced, not built)
-- **Cockpit layout v2** — three vertical thirds (revelator + terminal / parallel-slider +
-  middle-ground + 12-operator rail / axis row + zip dial + z-pad). Spec: `archideck/DESIGN.md`
-  → "Layout v2".
-- **Canvas length-toggle** dimensioning (readout at segment center origin; **Tab cycles** a
-  shape's sides) + **click-in-cell free text** (reflows as you type) + 50-char line budget.
-  Spec: `graphparti/DESIGN.md`.
-- Canvas brief steps 7–10: raster paint layer · on-canvas ZIP stamper · save/load `.parti`
-  + PNG export · palette/chrome.
+**Drawing tools:** Line · Polyline (close-to-polygon) · Rect · Circle · Trim (grid +
+intersection, works on all shapes, explode-on-trim) · Paint (region flood-fill, respects
+line barriers, drag-erase). Tab-type exact dimensions + live readouts on all tools.
+
+**Selection:** Layer-isolated (parti/both/trace). Shift+click multi-select. Right-click
+yeet-delete (selected items or item under cursor).
+
+**Color:** 16-swatch paint palette + 16-swatch line palette (2×8 each, right-click = picker).
+
+**Images:** Drag-drop + Ctrl-V paste → parti layer at 50% opacity. Selectable + movable +
+8-handle resize (corners + edges).
+
+**Layers:** parti (reference, 50%) / both / trace (working draft). Green dot active indicator.
+
+**Cockpit (Layout v2):** Revelator (single-line, toolbar-height) · Terminal (output + input +
+5 modifier buttons) · Middle ground + parallel slider + 12-operator F1-F12 rail · Axis row +
+compact 4-reel zip dial + Z-pad. Splitter between terminal and middle ground. Color-shell tint.
+
+## Next
+- **Cell free-text** — click grid cell → type in place. 50-char budget.
+- **Shift-block drawing** — hold Shift → lines auto-connect as a block.
+- **Image crop-to-selection** — rubber-band cut on images.
+- **Custom line weights** — the 16 line-color slots become weight presets.
+- **Save/load .parti** — JSON v1 + PNG export.
+- **Cockpit wiring** — operators → tools, zip stamping, Wilson lasso, canvas-swap.
+- Full roadmap: see `INVENTORY.md`.
 
 ## Pointers
 - Cockpit spec → `archideck/DESIGN.md`  ·  Canvas spec → `graphparti/DESIGN.md`
