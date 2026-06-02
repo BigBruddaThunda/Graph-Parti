@@ -55,6 +55,25 @@ one is 6"):
 - Lets the architect sketch loose over gridded ideas and quick-erase / re-sketch without
   disturbing the structural geometry. The tool knows which layer it's on.
 
+## Book tool — layered canvas blocks (future, 2026-06-01)
+- **B key** — "book" tool. Draw a region → creates a **book block** (a self-contained
+  layered canvas within the environment).
+- Each book has **stackable layers** (like browser tabs across the top of the book region).
+  Green tab = active layer. Drag tabs to reorder. + button adds layers.
+- Books are **zip-addressable** — the zip dial tags/names the book. The revelator string
+  shows above the book region's top-left corner.
+- **Canvas swap**: clicking into a book's layer takes you to its own canvas (like opening
+  a file). Draw inside the book, add layers, build complex elements.
+- Books can contain: UI icon packs, layered SVGs, CAD blocks, document pages, pixel art.
+- **Ctrl-C / Ctrl-V** on a book copies the entire thing (all layers preserved).
+- **Live updating**: books placed on the environment update when edited in the book layer.
+  Edit once → updates everywhere it's used.
+- **Library**: books are stored and retrievable. The 12 operator buttons on the Archideck
+  cockpit rail become book/block storage slots per operator category.
+- Books bridge: floor plans (blocks), documents (pages), design tokens (reusable elements),
+  pixel art (layered sprites), and SVG composition.
+- The "book" layer sits alongside parti/both/trace as a fourth mode.
+
 ## Curve tools (future, 2026-05-31)
 - **Smart curve corrector** — draw curves freely with cursor click-and-drag, the tool
   smooths/corrects the curve in real time. Works for both mouse and stylus.

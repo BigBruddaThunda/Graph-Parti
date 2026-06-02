@@ -42,8 +42,9 @@ class CanvasView(QGraphicsView):
         self.snap_enabled = True
         self._snap_pull = 0.125   # dead zone: only snap within 1/8 of grid spacing
         self._ortho_enabled = False
-        self._ortho_angle = 90     # degrees — 90=H/V, 45=+diags, 30/15=finer
+        self._ortho_angle = 45     # degrees — 45=H/V+diags (default), 90=H/V only
         self._layer_mode = "trace"  # "parti" | "both" | "trace"
+        self._wireframe = True      # grid visible; X key toggles
         self.document = None
         self.active_tool = None
         self.undo_stack = None
@@ -474,6 +475,8 @@ class CanvasView(QGraphicsView):
     # --------------------------------------------------------------------- grid
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
         super().drawBackground(painter, rect)
+        if not self._wireframe:
+            return  # grid hidden (X toggle)
         s = self.grid_spacing
         if s <= 0:
             return
@@ -640,9 +643,25 @@ class CanvasView(QGraphicsView):
 
     # ------------------------------------------------------------------- keys
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        # Ctrl-V: paste image from clipboard onto parti layer
+        # Ctrl-V: paste geometry (if copied) or image from clipboard
         if event.key() == Qt.Key.Key_V and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._paste_from_clipboard()
+            if hasattr(self, '_geometry_clipboard') and self._geometry_clipboard:
+                self._paste_geometry()
+            else:
+                self._paste_from_clipboard()
+            event.accept()
+            return
+        # Ctrl-C: copy selected items (stores in _clipboard)
+        if event.key() == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._copy_selected()
+            event.accept()
+            return
+        # Auto-type dimensions: digit/period keys open dim input while drawing
+        if (self._tool_active() and self.active_tool.in_progress
+                and not self._dim_input.isVisible()
+                and event.text() and event.text() in "0123456789."):
+            self._show_dim_input()
+            self._dim_input.setText(event.text())
             event.accept()
             return
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -651,6 +670,11 @@ class CanvasView(QGraphicsView):
             return
         if event.key() == Qt.Key.Key_Tab and self._tool_active() and self.active_tool.in_progress:
             self._show_dim_input()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_X and not event.isAutoRepeat():
+            self._wireframe = not self._wireframe
+            self.viewport().update()
             event.accept()
             return
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
@@ -829,6 +853,115 @@ class CanvasView(QGraphicsView):
         self._dim_input.setVisible(False)
         self._dim_input.clear()
         self.setFocus()
+
+    def _copy_selected(self) -> None:
+        """Ctrl-C: clone selected geometry items to internal clipboard."""
+        items = self.scene().selectedItems()
+        if not items:
+            return
+        # Store item blueprints (type + geometry + pen + data) for paste
+        self._geometry_clipboard = []
+        # Compute bounding rect center for relative positioning on paste
+        r = QRectF()
+        for it in items:
+            r = r.united(it.sceneBoundingRect())
+        self._clipboard_center = r.center()
+        for it in items:
+            bp = self._item_blueprint(it)
+            if bp:
+                self._geometry_clipboard.append(bp)
+
+    @staticmethod
+    def _item_blueprint(item):
+        """Extract a clonable blueprint from a QGraphicsItem."""
+        from PySide6.QtWidgets import QGraphicsPixmapItem
+        pen = item.pen() if hasattr(item, 'pen') else None
+        data = item.data(0)
+        pos = item.pos()
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            return ("line", QLineF(item.mapToScene(ln.p1()), item.mapToScene(ln.p2())),
+                    pen, data)
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            return ("rect", QRectF(tl, br), pen, data)
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            return ("ellipse", QRectF(tl, br), pen, data)
+        elif isinstance(item, QGraphicsPathItem):
+            # Clone the path in scene coords
+            path = item.path()
+            from PySide6.QtGui import QPainterPath
+            sp = QPainterPath()
+            for i in range(path.elementCount()):
+                el = path.elementAt(i)
+                pt = item.mapToScene(QPointF(el.x, el.y))
+                if i == 0:
+                    sp.moveTo(pt)
+                else:
+                    sp.lineTo(pt)
+            return ("path", sp, pen, data)
+        elif isinstance(item, QGraphicsPixmapItem):
+            return ("pixmap", item.pixmap(), item.pos(), item.transform(),
+                    item.opacity(), data)
+        return None
+
+    def _paste_geometry(self) -> None:
+        """Ctrl-V (when geometry clipboard has items): paste cloned geometry at viewport center."""
+        if not hasattr(self, '_geometry_clipboard') or not self._geometry_clipboard:
+            return
+        center = self.mapToScene(self.viewport().rect().center())
+        offset = center - self._clipboard_center
+        if self.snap_enabled:
+            gs = self.grid_spacing
+            offset = QPointF(round(offset.x() / gs) * gs, round(offset.y() / gs) * gs)
+        layer = self.document.active_vector_layer() if self.document else None
+        if layer is None:
+            return
+        if self.undo_stack:
+            self.undo_stack.beginMacro("Paste")
+        for bp in self._geometry_clipboard:
+            item = None
+            if bp[0] == "line":
+                ln = bp[1]
+                item = QGraphicsLineItem(QLineF(
+                    QPointF(ln.p1().x() + offset.x(), ln.p1().y() + offset.y()),
+                    QPointF(ln.p2().x() + offset.x(), ln.p2().y() + offset.y())))
+            elif bp[0] == "rect":
+                r = bp[1].translated(offset)
+                item = QGraphicsRectItem(r)
+            elif bp[0] == "ellipse":
+                r = bp[1].translated(offset)
+                item = QGraphicsEllipseItem(r)
+            elif bp[0] == "path":
+                from PySide6.QtGui import QPainterPath
+                sp = QPainterPath()
+                src = bp[1]
+                for i in range(src.elementCount()):
+                    el = src.elementAt(i)
+                    pt = QPointF(el.x + offset.x(), el.y + offset.y())
+                    if i == 0:
+                        sp.moveTo(pt)
+                    else:
+                        sp.lineTo(pt)
+                item = QGraphicsPathItem(sp)
+            if item is not None:
+                if bp[2]:  # pen
+                    item.setPen(bp[2])
+                item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                item.setData(0, dict(bp[3]) if bp[3] else {"zip": "", "note": ""})
+                if self.undo_stack:
+                    from .commands import AddItemCommand
+                    self.undo_stack.push(AddItemCommand(layer, item))
+                else:
+                    layer.add_item(item)
+        if self.undo_stack:
+            self.undo_stack.endMacro()
+        self.viewport().update()
 
     def _paste_from_clipboard(self) -> None:
         """Ctrl-V: paste clipboard image onto the parti layer at viewport center."""

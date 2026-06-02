@@ -5,9 +5,11 @@ roughly the architect's Claude-window width. graphparti is embedded, not importe
 """
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMainWindow, QSplitter
 
 from graphparti.app import install_font
@@ -22,6 +24,11 @@ class HostWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Archideck  ·  GRAPH PARTI")
+        # App icon (GP puzzle piece with party hat)
+        _icon = os.path.join(os.path.dirname(__file__), os.pardir,
+                             "graphparti", "assets", "icons", "gp-icon.png")
+        if os.path.exists(_icon):
+            self.setWindowIcon(QIcon(_icon))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.canvas = CanvasWidget()       # left — fills

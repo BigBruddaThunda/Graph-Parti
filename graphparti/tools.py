@@ -506,6 +506,84 @@ class TrimTool(Tool):
 
 
 # ═══════════════════════════════════════════════════════════ paint
+class OffsetTool(Tool):
+    """Offset: click a line, type distance, offset a parallel copy in cursor direction.
+    After clicking the source, a dim input pops up to type the distance."""
+    name = "offset"
+
+    def reset(self) -> None:
+        self._source = None
+        self._click_pos = None
+        self._waiting = False  # True = waiting for dim input before offsetting
+
+    def on_press(self, p: QPointF) -> None:
+        pick = self.canvas.pick_item(p)
+        if pick is None:
+            return
+        self._source = pick
+        self._click_pos = QPointF(p)
+        self._waiting = True
+        # Show dim input — user types distance, Enter/Tab confirms
+        # The view's event() will detect in_progress and show dim input on Tab/digit
+
+    @property
+    def in_progress(self) -> bool:
+        return self._waiting
+
+    def set_dimension(self, value: float) -> None:
+        """Distance typed → execute the offset now."""
+        if not self._waiting or self._source is None or self._click_pos is None:
+            return
+        self._do_offset(self._source, self._click_pos, value)
+        self._waiting = False
+
+    def _do_offset(self, item, click: QPointF, dist_grid: float) -> None:
+        gs = _gs(self.canvas)
+        d = dist_grid * gs
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            p1 = item.mapToScene(ln.p1())
+            p2 = item.mapToScene(ln.p2())
+            dx = p2.x() - p1.x()
+            dy = p2.y() - p1.y()
+            length = math.hypot(dx, dy)
+            if length < 1e-6:
+                return
+            nx, ny = -dy / length, dx / length
+            mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+            if (click.x() - mid.x()) * nx + (click.y() - mid.y()) * ny < 0:
+                nx, ny = -nx, -ny
+            op1 = QPointF(p1.x() + nx * d, p1.y() + ny * d)
+            op2 = QPointF(p2.x() + nx * d, p2.y() + ny * d)
+            new_item = QGraphicsLineItem(QLineF(op1, op2))
+            new_item.setPen(item.pen())
+            new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+            new_item.setData(0, {"zip": "", "note": ""})
+            self.canvas.add_item(new_item)
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            center = r.center()
+            out = (QLineF(center, click).length() > QLineF(center, r.topLeft()).length())
+            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            if nr.width() > 0 and nr.height() > 0:
+                new_item = QGraphicsRectItem(nr)
+                new_item.setPen(item.pen())
+                new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                new_item.setData(0, {"zip": "", "note": ""})
+                self.canvas.add_item(new_item)
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            center = r.center()
+            out = (QLineF(center, click).length() > r.width() / 2)
+            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            if nr.width() > 0 and nr.height() > 0:
+                new_item = QGraphicsEllipseItem(nr)
+                new_item.setPen(item.pen())
+                new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                new_item.setData(0, {"zip": "", "note": ""})
+                self.canvas.add_item(new_item)
+
+
 class PaintTool(Tool):
     """Region flood-fill: fills the closed region you click on (bounded by lines + grid)."""
     name = "paint"
@@ -515,7 +593,8 @@ class PaintTool(Tool):
     def reset(self) -> None:
         self._painting = False
         self._filled_cells: set[tuple[float, float]] = set()
-        self._color = QColor("#C1140C")
+        if not hasattr(self, '_color'):
+            self._color = QColor("#C1140C")  # only set default on first init
         self._erasing = False
         self._erased_ids: set[int] = set()
 
@@ -537,7 +616,7 @@ class PaintTool(Tool):
 
     def on_move(self, p: QPointF) -> None:
         if self._painting:
-            self._fill_region(p)
+            self._fill_region(p)  # geometry-aware even when dragging
 
     def on_release(self, p: QPointF) -> None:
         if self._painting:
@@ -578,70 +657,120 @@ class PaintTool(Tool):
             self._erasing = False
             self._erased_ids = set()
 
-    # ── region flood-fill ──
+    _FILL_RADIUS = 15  # cells around click to render for flood fill
+
+    # ── region-aware flood fill ──
     def _fill_region(self, click: QPointF) -> None:
         gs = _gs(self.canvas)
-        cx = math.floor(click.x() / gs) * gs
-        cy = math.floor(click.y() / gs) * gs
-        key = (cx, cy)
-        if key in self._filled_cells:
+        cell_key = (math.floor(click.x() / gs) * gs, math.floor(click.y() / gs) * gs)
+        if cell_key in self._filled_cells:
             return
-        self._filled_cells.add(key)
-        cell = QRectF(cx, cy, gs, gs)
 
-        R = self._RES
-        w = int(gs * R)
-        h = int(gs * R)
+        N = self._FILL_RADIUS
+        area_x = cell_key[0] - N * gs
+        area_y = cell_key[1] - N * gs
+        area_w = (2 * N + 1) * gs
+        area_h = (2 * N + 1) * gs
+        area = QRectF(area_x, area_y, area_w, area_h)
+        iw, ih = int(area_w), int(area_h)
 
-        # Render barriers (lines + cell boundary) onto a transparent image
-        img = QImage(w, h, QImage.Format.Format_ARGB32)
-        img.fill(0)  # fully transparent
+        # ── render barriers ──
+        img = QImage(iw, ih, QImage.Format.Format_ARGB32)
+        img.fill(0)  # transparent = fillable space
 
         p = QPainter(img)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        barrier = QPen(QColor(0, 0, 0, 255))
+        # Use a NON-black barrier color so black fill doesn't collide
+        barrier = QPen(QColor(1, 0, 1, 255))  # barrier marker (never a real fill color)
         barrier.setWidthF(1.0)
         p.setPen(barrier)
 
-        # Cell boundary
-        p.drawRect(0, 0, w - 1, h - 1)
+        # Grid lines as barriers (only if wireframe is on)
+        if getattr(self.canvas, '_wireframe', True):
+            gx = int(math.ceil(area_x / gs) * gs)
+            while gx <= area_x + area_w:
+                ix = int(gx - area_x)
+                p.drawLine(ix, 0, ix, ih - 1)
+                gx += gs
+            gy = int(math.ceil(area_y / gs) * gs)
+            while gy <= area_y + area_h:
+                iy = int(gy - area_y)
+                p.drawLine(0, iy, iw - 1, iy)
+                gy += gs
 
-        # All vector geometry crossing this cell
+        # All vector geometry as barriers
         for layer in self.canvas.document.layers:
             if layer.kind != "vector" or not layer.visible:
                 continue
             for item in layer.items():
                 if item.data(1) == "cell_fill":
                     continue
-                if not item.sceneBoundingRect().intersects(cell):
+                if not item.sceneBoundingRect().intersects(area):
                     continue
                 for seg in _item_segments(item):
-                    x1 = (seg.p1().x() - cx) * R
-                    y1 = (seg.p1().y() - cy) * R
-                    x2 = (seg.p2().x() - cx) * R
-                    y2 = (seg.p2().y() - cy) * R
+                    x1 = seg.p1().x() - area_x
+                    y1 = seg.p1().y() - area_y
+                    x2 = seg.p2().x() - area_x
+                    y2 = seg.p2().y() - area_y
                     p.drawLine(QLineF(x1, y1, x2, y2))
         p.end()
 
-        # Flood-fill from click position
-        fx = max(1, min(int((click.x() - cx) * R), w - 2))
-        fy = max(1, min(int((click.y() - cy) * R), h - 2))
+        # Save clean barrier state (before flood fill modifies the image)
+        barrier_snap = img.copy()
+
+        # Flood fill from click (nudge if on a barrier)
+        fx = max(0, min(int(click.x() - area_x), iw - 1))
+        fy = max(0, min(int(click.y() - area_y), ih - 1))
         if img.pixel(fx, fy) != 0:
-            return  # clicked on a line/barrier
+            fx = max(0, min(int(cell_key[0] + gs / 2 - area_x), iw - 1))
+            fy = max(0, min(int(cell_key[1] + gs / 2 - area_y), ih - 1))
+            if img.pixel(fx, fy) != 0:
+                return
 
         fill_c = QColor(self._color.red(), self._color.green(), self._color.blue(), 255)
-        _flood_fill(img, fx, fy, fill_c.rgba())
+        fill_px = fill_c.rgba()
+        _flood_fill(img, fx, fy, fill_px)
 
-        # Create the fill as a pixmap item
+        # Extract only NEWLY filled pixels (was transparent before, is fill now).
+        # This fixes the black-fill bug: barriers are stripped regardless of color.
+        for iy in range(ih):
+            for ix in range(iw):
+                was_empty = (barrier_snap.pixel(ix, iy) == 0)
+                is_filled = (img.pixel(ix, iy) == fill_px)
+                if was_empty and is_filled:
+                    ck = (math.floor((area_x + ix) / gs) * gs,
+                          math.floor((area_y + iy) / gs) * gs)
+                    self._filled_cells.add(ck)
+                else:
+                    img.setPixel(ix, iy, 0)
+
         filled = QGraphicsPixmapItem(QPixmap.fromImage(img))
-        filled.setPos(cx, cy)
-        filled.setScale(1.0 / R)
+        filled.setPos(area_x, area_y)
         filled.setOpacity(0.7)
         filled.setData(0, {"zip": "", "note": ""})
         filled.setData(1, "cell_fill")
         filled.setData(2, self._color.name())
         filled.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.canvas.add_item(filled)
+
+    # ── fast cell fill (drag) ──
+    def _fill_cell(self, p: QPointF) -> None:
+        gs = _gs(self.canvas)
+        cx = math.floor(p.x() / gs) * gs
+        cy = math.floor(p.y() / gs) * gs
+        key = (cx, cy)
+        if key in self._filled_cells:
+            return
+        self._filled_cells.add(key)
+        rect = QGraphicsRectItem(QRectF(cx, cy, gs, gs))
+        rect.setBrush(QBrush(self._color))
+        rect.setPen(QPen(Qt.PenStyle.NoPen))
+        rect.setData(0, {"zip": "", "note": ""})
+        rect.setData(1, "cell_fill")
+        rect.setData(2, self._color.name())
+        rect.setOpacity(0.7)
+        rect.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        self.canvas.add_item(rect)
 
     # ── erase fill at click point ──
     def _erase_at(self, p: QPointF) -> None:

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    CircleTool, LineTool, PaintTool, PolylineTool, RectTool, SelectTool, TrimTool,
+    CircleTool, LineTool, OffsetTool, PaintTool, PolylineTool, RectTool, SelectTool, TrimTool,
 )
 
 _SCENE_HALF = 100_000
@@ -146,6 +146,7 @@ class CanvasWidget(QWidget):
             "rect": RectTool(self.view),
             "circle": CircleTool(self.view),
             "trim": TrimTool(self.view),
+            "offset": OffsetTool(self.view),
             "paint": PaintTool(self.view),
         }
 
@@ -205,7 +206,7 @@ class CanvasWidget(QWidget):
             ("select", "Select", "V"), ("line", "Line", "L"),
             ("polyline", "Polyline", "P"), ("rect", "Rect", "R"),
             ("circle", "Circle", "C"), ("trim", "Trim", "T"),
-            ("paint", "Paint", "B"),
+            ("offset", "Offset", "O"), ("paint", "Paint", "B"),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
@@ -227,7 +228,7 @@ class CanvasWidget(QWidget):
         self._ortho_btn = QToolButton()
         self._ortho_btn.setText("Ortho")
         self._ortho_btn.setCheckable(True)
-        self._ortho_btn.setToolTip("Ortho lock (90°)")
+        self._ortho_btn.setToolTip("Ortho lock (45°)")
         self._ortho_btn.toggled.connect(self.view.set_ortho_enabled)
         ortho_menu = QMenu()
         for angle in [90, 45, 30, 15]:
@@ -273,12 +274,20 @@ class CanvasWidget(QWidget):
         self.view.set_tool(self._tools[key])
 
     def _on_color_selected(self, color: QColor) -> None:
+        # Set color FIRST, then activate (so tool has the right color on activate)
         paint = self._tools.get("paint")
         if paint:
             paint.set_color(color)
+        # Only switch tool if not already on paint (avoids resetting mid-work)
+        if self.view.active_tool is not self._tools.get("paint"):
+            self._tool_actions["paint"].setChecked(True)
+            self._activate_tool("paint")
 
     def _on_line_color_selected(self, color: QColor) -> None:
         self.view.set_stroke(color.name())
+        if self.view.active_tool is not self._tools.get("line"):
+            self._tool_actions["line"].setChecked(True)
+            self._activate_tool("line")
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)
