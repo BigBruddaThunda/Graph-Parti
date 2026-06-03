@@ -5,7 +5,7 @@
 > full cross-repo teleport lives in the home-base repo (`BigBruddaThunda/archideck`).
 
 **Architect:** Jake (Jacob Wilson Berry) · git `FounderCreator <jwberry234@gmail.com>` ·
-GitHub `BigBruddaThunda` · last updated **2026-05-31** (session 2)
+GitHub `BigBruddaThunda` · last updated **2026-06-03** (district + place tenure)
 
 ## What this is
 GRAPH PARTI = a precision hand-drafting desktop app (PySide6 / Qt6). One program, two halves
@@ -40,14 +40,26 @@ yeet-delete (selected items or item under cursor).
 5 modifier buttons) · Middle ground + parallel slider + 12-operator F1-F12 rail · Axis row +
 compact 4-reel zip dial + Z-pad. Splitter between terminal and middle ground. Color-shell tint.
 
+## Built (2026-06-03 · district + place tenure)
+**Drafting kit completed:** divide · rotate (snap-aware) · extend/fillet (held-E) · word + cell
+text · 62-glyph SCL palette (click = type, drag = place) · Five Classical Orders (Vignola,
+1D = 1 grid) · save/load `.parti` + PNG · stacked undo/redo · 2-decimal dims.
+
+**District File System floor — BUILT** (`district/` package, peer to `graphparti/`; isolation
+held): the wrapped lattice (6,552 base · 406,224 skeleton · 4,032 rooms) · SQLite facet index ·
+Node record · three reads **POINT / PATH / SET** · `graphparti↔district` bridge
+(`graphparti/district_bridge.py`). Verify: `python -m district.verify` + `python -m district.bridge_verify`.
+
+**Cockpit spawner-deck — BUILT:** book layer · drag [Archideck] plate → zip box (locked zip +
+editable `±` tail + `|` free-text) · drag z-pad → flow arrows · drag center 🍗 → leg/handback
+(logs to the cockpit terminal) · partial-zip dials · snap-tied resize.
+
 ## Next
-- **Cell free-text** — click grid cell → type in place. 50-char budget.
-- **Shift-block drawing** — hold Shift → lines auto-connect as a block.
-- **Image crop-to-selection** — rubber-band cut on images.
-- **Custom line weights** — the 16 line-color slots become weight presets.
-- **Save/load .parti** — JSON v1 + PNG export.
-- **Cockpit wiring** — operators → tools, zip stamping, Wilson lasso, canvas-swap.
-- Full roadmap: see `INVENTORY.md`.
+- **District floor remaining:** Tier 0/1 sorter (no-AI, next build) · cockpit shelf · district
+  containment · auto-save-back · semantic index.
+- **Place Layer floor (designed, see save-docs):** map base webview · place node record ·
+  plan-on-site Tier 0 · curriculum nodes · cron listings.
+- Full roadmap: see `INVENTORY.md` + the two save-docs in the home-base repo.
 
 ## Mobile (Android / Termux) — new track 2026-05-30
 Run the unmodified app on a phone (stylus-capable) via **Termux → proot Debian Trixie →
@@ -61,9 +73,14 @@ build (x86 Linux + Android NDK + `pyside6-android-deploy`) — not buildable fro
 ## Pointers
 - Mobile kit → `mobile/README.md`
 - Cockpit spec → `archideck/DESIGN.md`  ·  Canvas spec → `graphparti/DESIGN.md`
+- **District + Place save-docs** (the substrate this canvas writes into) → home-base repo
+  `BigBruddaThunda/archideck` → `archideck/docs/PPL-DISTRICT-FILE-SYSTEM.md` (storage, floor
+  built) + `archideck/docs/PPL-PLACE-LAYER.md` (the place surface, designed).
 - Home base / canon / tenure chain → repo `BigBruddaThunda/archideck` → `archideck/CLAUDE.md`
-  + `archideck/HEY-MR-WILSON.md`
-- Home-PC memory → `C:\Users\iamja\.claude\memory\reference_graphparti_cockpit_layout.md`
+  + `archideck/HEY-MR-WILSON.md` (full teleport) → latest tenure
+  `user/tenure/district-place-tenure-2026-06-03.parti`.
+- Home-PC memory → `C:\Users\iamja\.claude\memory\reference_district_file_system.md` +
+  `reference_place_layer_context.md` + `reference_graphparti_cockpit_layout.md`
 
 ## Flags
 - This repo (`Graph-Parti`) is **public**; the archideck home base is private. Flip to private
