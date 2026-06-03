@@ -49,7 +49,17 @@ compact 4-reel zip dial + Z-pad. Splitter between terminal and middle ground. Co
 - **Cockpit wiring** — operators → tools, zip stamping, Wilson lasso, canvas-swap.
 - Full roadmap: see `INVENTORY.md`.
 
+## Mobile (Android / Termux) — new track 2026-05-30
+Run the unmodified app on a phone (stylus-capable) via **Termux → proot Debian Trixie →
+PySide6 aarch64 wheel → Termux:X11**. No rewrite, no cross-compile. Kit lives in `mobile/`:
+`setup-termux.sh` (Stage 1) · `setup-debian.sh` (Stage 2) · `run-graphparti.sh` (the `gp`
+launcher) · `README.md` (the phone walkthrough). **Hard gate: glibc ≥ 2.39** — Debian
+Bookworm (2.36) fails the PySide6 wheel; Trixie (2.41) / Ubuntu 24.04 (2.39) pass. The
+script refuses early on too-old glibc. A true installable `.apk` is a *later* desktop-only
+build (x86 Linux + Android NDK + `pyside6-android-deploy`) — not buildable from the phone.
+
 ## Pointers
+- Mobile kit → `mobile/README.md`
 - Cockpit spec → `archideck/DESIGN.md`  ·  Canvas spec → `graphparti/DESIGN.md`
 - Home base / canon / tenure chain → repo `BigBruddaThunda/archideck` → `archideck/CLAUDE.md`
   + `archideck/HEY-MR-WILSON.md`
