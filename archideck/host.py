@@ -6,7 +6,9 @@ roughly the architect's Claude-window width. graphparti is embedded, not importe
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
+import threading
 
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QColor, QIcon, QPen, QPainterPath
@@ -65,6 +67,8 @@ class HostWindow(QMainWindow):
         self._conductor = Conductor(backend="ollama")
         self._thread_pool = QThreadPool.globalInstance()
         self._active_worker = None
+        self._shell_proc = None
+        self._shell_stdin = None
         self.cockpit.terminal_submitted.connect(self._on_terminal_input)
         self.cockpit.zip_changed.connect(self._on_zip_for_conductor)
         self.canvas.view.handback_with_bounds.connect(self._on_handback_for_conductor)
@@ -83,8 +87,66 @@ class HostWindow(QMainWindow):
     def _on_model_changed(self, model: str) -> None:
         self._conductor.model = model
 
+    # ── Shell mode ─────────────────────────────────────────────────
+
+    _SHELL_CMDS = {"claude", "codex", "gsk", "ollama", "lms", "pip", "git",
+                   "python", "node", "npm", "npx", "cmd", "powershell", "pwsh"}
+
+    def _is_shell(self, text: str) -> bool:
+        if text.startswith("!"):
+            return True
+        first = text.split()[0].lower() if text.strip() else ""
+        return first in self._SHELL_CMDS
+
+    def _run_shell(self, cmd: str) -> None:
+        if cmd.startswith("!"):
+            cmd = cmd[1:].strip()
+        self._shell_proc = subprocess.Popen(
+            cmd, shell=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            env={**os.environ, "PYTHONIOENCODING": "utf-8",
+                 "PYTHONUNBUFFERED": "1"},
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        self._shell_stdin = self._shell_proc.stdin
+
+        def _stream():
+            try:
+                for raw in iter(self._shell_proc.stdout.readline, b""):
+                    line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
+                    self.cockpit.append_terminal(line)
+            except Exception:
+                pass
+            code = self._shell_proc.wait()
+            self.cockpit.append_terminal(f"(exit {code})", prefix="~")
+            self._shell_proc = None
+            self._shell_stdin = None
+
+        threading.Thread(target=_stream, daemon=True).start()
+
+    def _send_to_shell(self, text: str) -> None:
+        if self._shell_stdin:
+            try:
+                self._shell_stdin.write((text + "\n").encode("utf-8"))
+                self._shell_stdin.flush()
+            except Exception:
+                self.cockpit.append_terminal("(shell stdin closed)", prefix="!")
+
+    # ── Terminal input router ────────────────────────────────────
+
     def _on_terminal_input(self, text: str) -> None:
         self.cockpit.append_terminal(text, prefix=">")
+
+        if getattr(self, "_shell_proc", None) is not None:
+            self._send_to_shell(text)
+            return
+
+        if self._is_shell(text):
+            self._run_shell(text)
+            return
+
         if self._active_worker is not None:
             self.cockpit.append_terminal("(waiting for previous response...)")
             return
