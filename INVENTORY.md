@@ -119,13 +119,18 @@ graphparti/
 - **Graph-parti-active mode**: expands up the left shell, spans full canvas height. Shows
   viewport position. Center-click pops a parallel snap-bar in graph-parti for stylus drawing.
 
+### Cockpit Wiring (Built)
+- Terminal ↔ Claude Haiku chat (streaming, multi-turn, `archideck/conductor.py`)
+- 🍗 handback bounds → Conductor context (draw within the flagged region)
+- Tool use: draw_line, draw_rect, draw_circle, draw_polyline (undo-integrated)
+- API key: `ANTHROPIC_API_KEY` env var
+
 ### Cockpit Wiring (Future)
 - Operators → tool panels in the middle ground
 - Zip stamping onto canvas geometry (partial-tag with the dial)
 - Wilson "w" lasso for zip-addressing drawn content
 - Canvas-swap via [Archideck] copper plate (mobile: flip cockpit ↔ canvas)
 - Event-logging flag (AI reads what was drafted)
-- Terminal ↔ AI chat / command interface
 - Middle-ground = canvas viewport preview (minimap)
 
 ### DLC-Layer Features (Future Graph Parti Expansions)

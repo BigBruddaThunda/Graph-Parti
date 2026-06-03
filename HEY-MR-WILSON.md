@@ -54,6 +54,14 @@ Node record · three reads **POINT / PATH / SET** · `graphparti↔district` bri
 editable `±` tail + `|` free-text) · drag z-pad → flow arrows · drag center 🍗 → leg/handback
 (logs to the cockpit terminal) · partial-zip dials · snap-tied resize.
 
+## Built (2026-06-03 · Conductor terminal wiring)
+**Conductor (duco) wired to terminal:** Claude Haiku (claude-haiku-4-5-20251001) via Anthropic
+SDK. Two-tempo interface: free chat in the terminal (multi-turn) + 🍗 handback to define a
+working region, then command drawing within those bounds. Tools: draw_line, draw_rect,
+draw_circle, draw_polyline (fill_region stubbed). Undo-integrated (Ctrl-Z undoes Conductor
+draws as one macro). Context injection: active zip + handback log + bounding rect. New file:
+`archideck/conductor.py`. API key via `ANTHROPIC_API_KEY` env var.
+
 ## Next
 - **District floor remaining:** Tier 0/1 sorter (no-AI, next build) · cockpit shelf · district
   containment · auto-save-back · semantic index.
