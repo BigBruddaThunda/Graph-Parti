@@ -205,6 +205,7 @@ class ArchideckPanel(QWidget):
     # Active zip (operator, axis, order, color) glyphs — the host wires this to
     # the canvas so drawings file at the dialed district.
     zip_changed = Signal(str, str, str, str)
+    terminal_submitted = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -337,6 +338,8 @@ class ArchideckPanel(QWidget):
             self._terminal_buttons.append(b)
         self._terminal_buttons.append(btn5)
         outer.addLayout(right)
+
+        self._terminal_input.returnPressed.connect(self._on_terminal_submit)
 
         splitter.addWidget(frame)
 
@@ -502,6 +505,16 @@ class ArchideckPanel(QWidget):
         self._handbacks.append(summary)
         if hasattr(self, "_terminal_output"):
             self._terminal_output.appendPlainText(f"🍗 handback ← {summary}")
+
+    def _on_terminal_submit(self) -> None:
+        text = self._terminal_input.text().strip()
+        if text:
+            self.terminal_submitted.emit(text)
+            self._terminal_input.clear()
+
+    def append_terminal(self, text: str, prefix: str = "") -> None:
+        line = f"{prefix} {text}" if prefix else text
+        self._terminal_output.appendPlainText(line)
 
     # ============================================================
     # COLOR SHELL TINT — color dial → whole panel background
