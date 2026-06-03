@@ -30,6 +30,7 @@ class CanvasView(QGraphicsView):
     cursor_moved = Signal(QPointF, str)  # resolved scene position, snap kind
     zoom_changed = Signal(float)
     handback_requested = Signal(str)     # district legged back to the Archideck
+    handback_with_bounds = Signal(str, object)  # same + bounding rect in grid units
 
     ZOOM_STEP = 1.15
     MIN_SCALE = 0.05
@@ -1136,6 +1137,14 @@ class CanvasView(QGraphicsView):
             if ch.data(1) == "zip_box_text":
                 title = (ch.toPlainText() or "").strip().replace("\n", " ")[:40]
         self.handback_requested.emit(zipstr + (f'  "{title}"' if title else ""))
+        bounds_grid = {
+            "x": box.rect().x() / self.grid_spacing,
+            "y": box.rect().y() / self.grid_spacing,
+            "w": box.rect().width() / self.grid_spacing,
+            "h": box.rect().height() / self.grid_spacing,
+        }
+        self.handback_with_bounds.emit(
+            zipstr + (f'  "{title}"' if title else ""), bounds_grid)
 
     def _focus_zipbox_text(self, scene_pos: QPointF) -> bool:
         """Select + click on a district's tail/free-text field → edit it (the zip
