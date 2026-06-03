@@ -6,7 +6,13 @@ linear, inspectable stack.
 """
 from __future__ import annotations
 
-from PySide6.QtGui import QUndoCommand
+from PySide6.QtGui import QTransform, QUndoCommand
+from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsPathItem,
+    QGraphicsRectItem,
+)
 
 
 class AddItemCommand(QUndoCommand):
@@ -53,3 +59,46 @@ class DeleteItemsCommand(QUndoCommand):
         for it, layer in self.pairs:
             if layer is not None:
                 layer.add_item(it)
+
+
+class ReshapeCommand(QUndoCommand):
+    """Reshape a geometry item (line/rect/ellipse/path) by swapping its geometry."""
+
+    def __init__(self, item, old_geom, new_geom) -> None:
+        super().__init__("reshape")
+        self.item = item
+        self.old_geom = old_geom
+        self.new_geom = new_geom
+
+    def redo(self) -> None:
+        self._apply(self.new_geom)
+
+    def undo(self) -> None:
+        self._apply(self.old_geom)
+
+    def _apply(self, geom) -> None:
+        if isinstance(self.item, QGraphicsLineItem):
+            self.item.setLine(geom)
+        elif isinstance(self.item, (QGraphicsRectItem, QGraphicsEllipseItem)):
+            self.item.setRect(geom)
+        elif isinstance(self.item, QGraphicsPathItem):
+            self.item.setPath(geom)
+
+
+class RotateCommand(QUndoCommand):
+    """Rotate a set of items around a pivot. States captured as
+    (item, old_pos, old_transform, new_pos, new_transform)."""
+
+    def __init__(self, states) -> None:
+        super().__init__("rotate")
+        self.states = states
+
+    def redo(self) -> None:
+        for item, _op, _ot, np_, nt in self.states:
+            item.setPos(np_)
+            item.setTransform(nt)
+
+    def undo(self) -> None:
+        for item, op, ot, _np, _nt in self.states:
+            item.setPos(op)
+            item.setTransform(ot)

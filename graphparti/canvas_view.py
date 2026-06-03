@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
 )
 
-from .commands import AddItemCommand, DeleteItemsCommand, MoveItemsCommand
+from .commands import AddItemCommand, DeleteItemsCommand, MoveItemsCommand, ReshapeCommand
 
 
 class CanvasView(QGraphicsView):
@@ -45,10 +45,15 @@ class CanvasView(QGraphicsView):
         self._ortho_angle = 45     # degrees — 45=H/V+diags (default), 90=H/V only
         self._layer_mode = "trace"  # "parti" | "both" | "trace"
         self._wireframe = True      # grid visible; X key toggles
+        self._div_visible = True    # red division ticks visible; N key toggles
         self.document = None
         self.active_tool = None
         self.undo_stack = None
         self._stroke_color = "#3C3C3C"
+        self._fill_color = None
+        self._e_held = False
+        self._e_prev_tool = None
+        self._extend_tool = None  # set by CanvasWidget after tool creation
         self._panning = False
         self._right_dragging = False
         self._resize_handle = None   # active resize handle index (0-7) or None
@@ -67,6 +72,7 @@ class CanvasView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setBackgroundBrush(QColor("#F2EBD8"))  # warm sheep's-wool paper
         self.setAcceptDrops(True)  # accept image file drops → parti layer
+        scene.selectionChanged.connect(self._on_selection_changed)
 
         # Tab-type dimension input (floating over canvas)
         self._dim_input = QLineEdit(self)
@@ -77,7 +83,13 @@ class CanvasView(QGraphicsView):
         )
         self._dim_input.setVisible(False)
         self._dim_input.returnPressed.connect(self._on_dim_confirm)
+        self._dim_input.textEdited.connect(self._on_dim_text_edited)
         self._dim_input.installEventFilter(self)
+        self._dim_opened_this_press = False
+
+        self._dim_edit_idx: int = 0
+        self._dim_edit_item = None
+        self._dim_editing_selected = False
 
         self._minor_color = QColor("#AECEE7")  # sky-blue notebook lines (minor)
         self._major_color = QColor("#7FB2D6")  # sky-blue (major, a touch stronger)
@@ -91,7 +103,9 @@ class CanvasView(QGraphicsView):
         if ev.type() == QEvent.Type.KeyPress and ev.key() == Qt.Key.Key_Tab:
             if self._dim_input.isVisible():
                 self._apply_dim_value()
-                if (self.active_tool and self.active_tool.name == "rect"
+                if self._has_selected_dims():
+                    self._show_selected_dim_input()
+                elif (self.active_tool and self.active_tool.name == "rect"
                         and getattr(self.active_tool, '_dim_phase', 0) > 0):
                     self._dim_input.clear()
                     self._dim_input.setFocus()
@@ -103,6 +117,9 @@ class CanvasView(QGraphicsView):
             if self._tool_active() and self.active_tool.in_progress:
                 self._show_dim_input()
                 return True
+            if self._has_selected_dims():
+                self._show_selected_dim_input()
+                return True
         return super().event(ev)
 
     def eventFilter(self, obj, ev) -> bool:
@@ -110,7 +127,9 @@ class CanvasView(QGraphicsView):
         if obj is self._dim_input and ev.type() == QEvent.Type.KeyPress:
             if ev.key() == Qt.Key.Key_Tab:
                 self._apply_dim_value()
-                if (self.active_tool and self.active_tool.name == "rect"
+                if self._has_selected_dims():
+                    self._show_selected_dim_input()
+                elif (self.active_tool and self.active_tool.name == "rect"
                         and getattr(self.active_tool, '_dim_phase', 0) > 0):
                     self._dim_input.clear()
                 else:
@@ -123,7 +142,6 @@ class CanvasView(QGraphicsView):
                 self._dim_input.setVisible(False)
                 self._dim_input.clear()
                 self.setFocus()
-                # Enter = auto-commit the shape immediately
                 if self.active_tool and self.active_tool.in_progress:
                     self.active_tool.on_release(QPointF())
                     self.viewport().update()
@@ -131,20 +149,25 @@ class CanvasView(QGraphicsView):
             if ev.key() == Qt.Key.Key_Escape:
                 self._dim_input.setVisible(False)
                 self._dim_input.clear()
+                self._dim_editing_selected = False
                 self.setFocus()
                 return True
         return super().eventFilter(obj, ev)
 
     def _apply_dim_value(self) -> None:
         text = self._dim_input.text().strip()
-        if text:
-            try:
-                value = float(text)
-                if self.active_tool:
-                    self.active_tool.set_dimension(value)
-                    self.viewport().update()
-            except ValueError:
-                pass
+        if not text:
+            return
+        try:
+            value = float(text)
+        except ValueError:
+            return
+        if self._dim_editing_selected:
+            self._reshape_selected(value)
+            self._dim_editing_selected = False
+        elif self.active_tool:
+            self.active_tool.set_dimension(value)
+            self.viewport().update()
 
     # --------------------------------------------------------- tools / document
     def set_tool(self, tool) -> None:
@@ -160,6 +183,9 @@ class CanvasView(QGraphicsView):
 
     def set_stroke(self, color: str) -> None:
         self._stroke_color = color
+
+    def set_fill(self, color: str | None) -> None:
+        self._fill_color = color
 
     def add_item(self, item: QGraphicsItem) -> None:
         layer = self.document.active_vector_layer() if self.document else None
@@ -432,6 +458,8 @@ class CanvasView(QGraphicsView):
             if layer.kind != "vector" or not layer.visible:
                 continue
             for item in layer.items():
+                if not item.isVisible():
+                    continue
                 for point, kind in self._osnap_candidates(item):
                     d = QLineF(raw, point).length()
                     if d <= best_d:
@@ -445,6 +473,9 @@ class CanvasView(QGraphicsView):
 
     def _osnap_candidates(self, item) -> list[tuple[QPointF, str]]:
         out: list[tuple[QPointF, str]] = []
+        if item.data(1) == "div_point":
+            # snap to the mark's centre (local origin), robust to rotate/move
+            return [(item.mapToScene(QPointF(0.0, 0.0)), "endpoint")]
         if isinstance(item, QGraphicsLineItem):
             ln = item.line()
             out.append((item.mapToScene(ln.p1()), "endpoint"))
@@ -504,7 +535,7 @@ class CanvasView(QGraphicsView):
         super().drawForeground(painter, rect)
         if self.active_tool is not None:
             self.active_tool.paint_preview(painter)
-        # Resize handles on selected pixmap items
+        self._draw_selected_dims(painter)
         self._draw_resize_handles(painter)
         if self._cursor_scene is None or not self._snap_kind:
             return
@@ -540,6 +571,7 @@ class CanvasView(QGraphicsView):
 
     # -------------------------------------------------------- mouse: pan + tool
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        self._dim_opened_this_press = False
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = True
             self._pan_anchor = event.position()
@@ -610,8 +642,11 @@ class CanvasView(QGraphicsView):
             self.viewport().update()
             event.accept()
             return
-        # Apply any pending Tab dimension before committing the shape
-        if event.button() == Qt.MouseButton.LeftButton and self._dim_input.isVisible():
+        # Apply any pending Tab dimension before committing the shape.
+        # Skip the release that belongs to the very press that opened the input
+        # (e.g. the picking click in Divide/Offset) so the input stays up to type.
+        if (event.button() == Qt.MouseButton.LeftButton and self._dim_input.isVisible()
+                and not self._dim_opened_this_press):
             self._apply_dim_value()
             self._dim_input.setVisible(False)
             self._dim_input.clear()
@@ -656,11 +691,35 @@ class CanvasView(QGraphicsView):
             self._copy_selected()
             event.accept()
             return
+        # Don't intercept keys when a text item is being edited (let text handle them)
+        if self._text_item_has_focus():
+            if event.key() == Qt.Key.Key_Escape:
+                focus = self.scene().focusItem()
+                from PySide6.QtWidgets import QGraphicsTextItem
+                if isinstance(focus, QGraphicsTextItem):
+                    focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                    focus.clearFocus()
+                    if not focus.toPlainText().strip():
+                        if self.undo_stack and self.document:
+                            self.undo_stack.push(DeleteItemsCommand(self.document, [focus]))
+                    if self.active_tool and hasattr(self.active_tool, '_active_text'):
+                        self.active_tool._active_text = None
+                    event.accept()
+                    return
+            super().keyPressEvent(event)
+            return
         # Auto-type dimensions: digit/period keys open dim input while drawing
         if (self._tool_active() and self.active_tool.in_progress
                 and not self._dim_input.isVisible()
                 and event.text() and event.text() in "0123456789."):
             self._show_dim_input()
+            self._dim_input.setText(event.text())
+            event.accept()
+            return
+        if (self._has_selected_dims()
+                and not self._dim_input.isVisible()
+                and event.text() and event.text() in "0123456789."):
+            self._show_selected_dim_input()
             self._dim_input.setText(event.text())
             event.accept()
             return
@@ -672,9 +731,24 @@ class CanvasView(QGraphicsView):
             self._show_dim_input()
             event.accept()
             return
+        if event.key() == Qt.Key.Key_Tab and self._has_selected_dims():
+            self._show_selected_dim_input()
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_X and not event.isAutoRepeat():
             self._wireframe = not self._wireframe
             self.viewport().update()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_N and not event.isAutoRepeat():
+            self._toggle_division_marks()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_E and not event.isAutoRepeat():
+            if not self._e_held and self._extend_tool is not None:
+                self._e_held = True
+                self._e_prev_tool = self.active_tool
+                self.set_tool(self._extend_tool)
             event.accept()
             return
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
@@ -690,24 +764,50 @@ class CanvasView(QGraphicsView):
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        if event.key() == Qt.Key.Key_E and not event.isAutoRepeat():
+            if self._e_held:
+                self._e_held = False
+                if self.active_tool and hasattr(self.active_tool, 'cancel'):
+                    if self.active_tool.in_progress:
+                        self.active_tool.cancel()
+                if self._e_prev_tool is not None:
+                    self.set_tool(self._e_prev_tool)
+                    self._e_prev_tool = None
+                self.viewport().update()
         super().keyReleaseEvent(event)
 
     # ----------------------------------------- drag-and-drop (reference images)
     def dragEnterEvent(self, event) -> None:
         md = event.mimeData()
-        if md.hasImage() or md.hasUrls():
+        if md.hasImage() or md.hasUrls() or md.hasFormat("application/x-scl-glyph"):
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event) -> None:
-        if event.mimeData().hasImage() or event.mimeData().hasUrls():
+        md = event.mimeData()
+        if md.hasImage() or md.hasUrls() or md.hasFormat("application/x-scl-glyph"):
             event.acceptProposedAction()
         else:
             super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
         md = event.mimeData()
+
+        # ── SCL glyph drop (drag from emoji palette → place book) ──
+        if md.hasFormat("application/x-scl-glyph"):
+            glyph = bytes(md.data("application/x-scl-glyph")).decode("utf-8")
+            scene_pos = self.mapToScene(event.position().toPoint())
+            if self.snap_enabled:
+                gs = self.grid_spacing
+                scene_pos = QPointF(
+                    round(scene_pos.x() / gs) * gs,
+                    round(scene_pos.y() / gs) * gs)
+            if self._handle_glyph_drop(glyph, scene_pos):
+                event.acceptProposedAction()
+                self.viewport().update()
+                return
+
         pixmap = None
 
         # Try image data first (clipboard paste / drag)
@@ -847,12 +947,237 @@ class CanvasView(QGraphicsView):
         self._dim_input.setVisible(True)
         self._dim_input.setFocus()
 
+    # ----------------------------------------- glyph drag-and-drop (books)
+    # Map order glyphs to their Vignola order names
+    _ORDER_GLYPH_MAP = {
+        "🐂": "tuscan", "⛽": "doric", "🦋": "ionic",
+        "🏟": "corinthian", "🌾": "composite",
+    }
+
+    def _handle_glyph_drop(self, glyph: str, scene_pos: QPointF) -> bool:
+        """Handle a glyph dragged from the palette onto the canvas.
+        Returns True if the glyph had a drop action."""
+        order_name = self._ORDER_GLYPH_MAP.get(glyph)
+        if order_name is not None:
+            from .orders import draw_order
+            gs = self.grid_spacing
+            items = draw_order(order_name, scene_pos.x(), scene_pos.y(), gs)
+            if self.undo_stack:
+                self.undo_stack.beginMacro(f"Place {order_name}")
+            for item in items:
+                self.add_item(item)
+            if self.undo_stack:
+                self.undo_stack.endMacro()
+            return True
+        return False
+
+    def _toggle_division_marks(self) -> None:
+        """N key: show/hide all red division tick marks."""
+        self._div_visible = not self._div_visible
+        if self.document is not None:
+            for layer in self.document.layers:
+                if layer.kind != "vector":
+                    continue
+                for item in layer.items():
+                    if item.data(1) == "div_point":
+                        item.setVisible(self._div_visible)
+        self.viewport().update()
+
+    def request_dim_input(self, scene_pos: QPointF, prefill: str = "") -> None:
+        """Tool-callable: show dim input at a scene position with pre-filled text."""
+        vp = self.mapFromScene(scene_pos)
+        self._dim_input.move(vp.x() + 15, max(0, vp.y() - 10))
+        self._dim_input.setText(prefill)
+        self._dim_input.selectAll()
+        self._dim_input.setVisible(True)
+        self._dim_input.setFocus()
+        self._dim_opened_this_press = True
+
+    def _on_dim_text_edited(self, text: str) -> None:
+        """Live-preview hook: feed the typed value to a tool that wants it."""
+        if self.active_tool and hasattr(self.active_tool, 'preview_dimension'):
+            try:
+                self.active_tool.preview_dimension(float(text))
+            except ValueError:
+                pass
+
     def _on_dim_confirm(self) -> None:
         """Apply the typed dimension to the active tool (Enter key)."""
         self._apply_dim_value()
         self._dim_input.setVisible(False)
         self._dim_input.clear()
         self.setFocus()
+
+    # ----------------------------------------- selected-item dimension labels
+    def _on_selection_changed(self) -> None:
+        sel = self.scene().selectedItems()
+        item = sel[0] if len(sel) == 1 else None
+        if item is not self._dim_edit_item:
+            self._dim_edit_idx = 0
+            self._dim_edit_item = item
+
+    def _text_item_has_focus(self) -> bool:
+        focus = self.scene().focusItem()
+        from PySide6.QtWidgets import QGraphicsTextItem
+        return isinstance(focus, QGraphicsTextItem)
+
+    def _has_selected_dims(self) -> bool:
+        sel = self.scene().selectedItems()
+        if len(sel) != 1:
+            return False
+        from PySide6.QtWidgets import QGraphicsTextItem
+        if isinstance(sel[0], QGraphicsTextItem):
+            return False
+        return bool(self._item_dimensions(sel[0]))
+
+    def _show_selected_dim_input(self) -> None:
+        sel = self.scene().selectedItems()
+        if len(sel) != 1:
+            return
+        dims = self._item_dimensions(sel[0])
+        if not dims:
+            return
+        idx = self._dim_edit_idx % len(dims)
+        mid, length, prefix = dims[idx]
+        vp = self.mapFromScene(mid)
+        self._dim_input.move(vp.x() + 15, max(0, vp.y() - 10))
+        from .tools import _dim_text
+        self._dim_input.setText(_dim_text(length))
+        self._dim_input.selectAll()
+        self._dim_input.setVisible(True)
+        self._dim_input.setFocus()
+        self._dim_editing_selected = True
+
+    def _item_dimensions(self, item):
+        """Return [(midpoint, length_grid, label_prefix)] for each editable dimension."""
+        if item.data(1) in ("cell_fill", "cell_text", "word_text", "div_point"):
+            return []
+        gs = self.grid_spacing
+        dims = []
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            p1 = item.mapToScene(ln.p1())
+            p2 = item.mapToScene(ln.p2())
+            mid = self._mid(p1, p2)
+            dims.append((mid, QLineF(p1, p2).length() / gs, ""))
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            corners = [item.mapToScene(c) for c in
+                       (r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft())]
+            for i in range(4):
+                a, b = corners[i], corners[(i + 1) % 4]
+                mid = self._mid(a, b)
+                dims.append((mid, QLineF(a, b).length() / gs, ""))
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            cx = (r.left() + r.right()) / 2.0
+            cy = (r.top() + r.bottom()) / 2.0
+            radius = r.width() / 2.0 / gs
+            center = item.mapToScene(QPointF(cx, cy))
+            edge = item.mapToScene(QPointF(r.right(), cy))
+            mid = self._mid(center, edge)
+            dims.append((mid, radius, "r="))
+        elif isinstance(item, QGraphicsPathItem):
+            path = item.path()
+            pts = [item.mapToScene(QPointF(path.elementAt(i).x, path.elementAt(i).y))
+                   for i in range(path.elementCount())]
+            for a, b in zip(pts, pts[1:]):
+                mid = self._mid(a, b)
+                dims.append((mid, QLineF(a, b).length() / gs, ""))
+        return dims
+
+    def _draw_selected_dims(self, painter: QPainter) -> None:
+        sel = self.scene().selectedItems()
+        if len(sel) != 1:
+            return
+        item = sel[0]
+        dims = self._item_dimensions(item)
+        if not dims:
+            return
+        from .tools import _dim_text
+        for i, (mid, length, prefix) in enumerate(dims):
+            active = (i == self._dim_edit_idx % len(dims))
+            vp = painter.transform().map(mid)
+            painter.save()
+            painter.resetTransform()
+            f = painter.font()
+            f.setPixelSize(11)
+            painter.setFont(f)
+            color = QColor("#2464E5") if active else QColor("#3C3C3C")
+            painter.setPen(QPen(color))
+            text = f"{prefix}{_dim_text(length)}"
+            if active:
+                text = f"[{text}]"
+            painter.drawText(QPointF(vp.x() + 6, vp.y() - 4), text)
+            painter.restore()
+
+    def _reshape_selected(self, new_value: float) -> None:
+        """Reshape the selected item's active dimension to new_value (grid units)."""
+        sel = self.scene().selectedItems()
+        if len(sel) != 1 or self.undo_stack is None:
+            return
+        item = sel[0]
+        dims = self._item_dimensions(item)
+        if not dims:
+            return
+        idx = self._dim_edit_idx % len(dims)
+        gs = self.grid_spacing
+        scene_val = new_value * gs
+
+        if isinstance(item, QGraphicsLineItem):
+            old_line = QLineF(item.line())
+            p1 = item.mapToScene(old_line.p1())
+            p2 = item.mapToScene(old_line.p2())
+            ln = QLineF(p1, p2)
+            if ln.length() < 1e-6:
+                return
+            ln.setLength(scene_val)
+            new_line = QLineF(item.mapFromScene(ln.p1()), item.mapFromScene(ln.p2()))
+            self.undo_stack.push(ReshapeCommand(item, old_line, new_line))
+
+        elif isinstance(item, QGraphicsRectItem):
+            old_rect = QRectF(item.rect())
+            r = QRectF(old_rect)
+            if idx in (0, 2):
+                r.setWidth(scene_val)
+            else:
+                r.setHeight(scene_val)
+            self.undo_stack.push(ReshapeCommand(item, old_rect, r))
+
+        elif isinstance(item, QGraphicsEllipseItem):
+            old_rect = QRectF(item.rect())
+            cx = (old_rect.left() + old_rect.right()) / 2.0
+            cy = (old_rect.top() + old_rect.bottom()) / 2.0
+            new_rect = QRectF(cx - scene_val, cy - scene_val,
+                              2 * scene_val, 2 * scene_val)
+            self.undo_stack.push(ReshapeCommand(item, old_rect, new_rect))
+
+        elif isinstance(item, QGraphicsPathItem):
+            old_path = item.path()
+            pts = [QPointF(old_path.elementAt(i).x, old_path.elementAt(i).y)
+                   for i in range(old_path.elementCount())]
+            if idx >= len(pts) - 1:
+                return
+            a, b = pts[idx], pts[idx + 1]
+            seg = QLineF(a, b)
+            if seg.length() < 1e-6:
+                return
+            seg.setLength(scene_val)
+            pts[idx + 1] = seg.p2()
+            from PySide6.QtGui import QPainterPath
+            new_path = QPainterPath(pts[0])
+            for pt in pts[1:]:
+                new_path.lineTo(pt)
+            if old_path.elementCount() > 2:
+                last_el = old_path.elementAt(old_path.elementCount() - 1)
+                first_el = old_path.elementAt(0)
+                if (abs(last_el.x - first_el.x) < 1e-6
+                        and abs(last_el.y - first_el.y) < 1e-6):
+                    new_path.closeSubpath()
+            self.undo_stack.push(ReshapeCommand(item, old_path, new_path))
+
+        self._dim_edit_idx = (idx + 1) % len(dims)
+        self.viewport().update()
 
     def _copy_selected(self) -> None:
         """Ctrl-C: clone selected geometry items to internal clipboard."""

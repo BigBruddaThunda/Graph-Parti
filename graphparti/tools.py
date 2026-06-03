@@ -11,7 +11,9 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import (
+    QBrush, QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QTransform,
+)
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
     QGraphicsPathItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
+    QGraphicsTextItem,
 )
 
 DEFAULT_STROKE = "#3C3C3C"
@@ -50,7 +53,9 @@ def _ortho_snap(start: QPointF, p: QPointF, angle_step: int = 90) -> QPointF:
 
 
 def _dim_text(v: float) -> str:
-    return str(int(round(v))) if abs(v - round(v)) < 0.05 else f"{v:.1f}"
+    if abs(v - round(v)) < 0.005:
+        return str(int(round(v)))
+    return f"{v:.2f}".rstrip("0").rstrip(".")
 
 
 def _draw_dim_label(painter: QPainter, scene_pt: QPointF, text: str) -> None:
@@ -94,6 +99,18 @@ def _item_segments(item) -> list[QLineF]:
                    (r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft())]
         for i in range(4):
             segs.append(QLineF(corners[i], corners[(i + 1) % 4]))
+    elif isinstance(item, QGraphicsEllipseItem):
+        r = item.rect()
+        cx = (r.left() + r.right()) / 2.0
+        cy = (r.top() + r.bottom()) / 2.0
+        rx, ry = r.width() / 2.0, r.height() / 2.0
+        n = 72
+        pts = [item.mapToScene(QPointF(
+            cx + rx * math.cos(2.0 * math.pi * i / n),
+            cy + ry * math.sin(2.0 * math.pi * i / n)))
+            for i in range(n + 1)]
+        for a, b in zip(pts, pts[1:]):
+            segs.append(QLineF(a, b))
     elif isinstance(item, QGraphicsPathItem):
         path = item.path()
         pts = [item.mapToScene(QPointF(path.elementAt(i).x, path.elementAt(i).y))
@@ -157,6 +174,11 @@ class Tool:
 
     def _commit(self, item: QGraphicsItem) -> None:
         item.setPen(make_pen(self.canvas.current_stroke(), DEFAULT_WIDTH))
+        fill = getattr(self.canvas, '_fill_color', None)
+        if fill is not None and hasattr(item, 'setBrush'):
+            c = QColor(fill)
+            c.setAlpha(180)
+            item.setBrush(QBrush(c))
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         item.setData(0, {"zip": "", "note": ""})
         self.canvas.add_item(item)
@@ -465,6 +487,10 @@ class SelectTool(Tool):
     def on_release(self, p: QPointF) -> None:
         if self._mode == "move" and self._moved:
             d = p - self._anchor
+            gs = _gs(self.canvas)
+            has_text = any(isinstance(it, QGraphicsTextItem) for it in self._orig)
+            if has_text:
+                d = QPointF(round(d.x() / gs) * gs, round(d.y() / gs) * gs)
             for it, orig in self._orig.items():
                 it.setPos(orig)
             self.canvas.push_move(list(self._orig.keys()), d.x(), d.y())
@@ -505,37 +531,233 @@ class TrimTool(Tool):
         self.canvas.trim_at(p)
 
 
-# ═══════════════════════════════════════════════════════════ paint
-class OffsetTool(Tool):
-    """Offset: click a line, type distance, offset a parallel copy in cursor direction.
-    After clicking the source, a dim input pops up to type the distance."""
-    name = "offset"
+# ═══════════════════════════════════════════════════════════ extend / fillet
+class ExtendTool(Tool):
+    """Two-click extend: left-click endpoint → click destination to connect.
+    Right-click near two lines → fillet (trim/extend to meet).
+    Works as a toolbar tool AND as a held-E modifier from any tool."""
+    name = "extend"
 
     def reset(self) -> None:
-        self._source = None
-        self._click_pos = None
-        self._waiting = False  # True = waiting for dim input before offsetting
-
-    def on_press(self, p: QPointF) -> None:
-        pick = self.canvas.pick_item(p)
-        if pick is None:
-            return
-        self._source = pick
-        self._click_pos = QPointF(p)
-        self._waiting = True
-        # Show dim input — user types distance, Enter/Tab confirms
-        # The view's event() will detect in_progress and show dim input on Tab/digit
+        self._source_item = None
+        self._source_end = None
+        self._source_line_orig = None
+        self._phase = 0  # 0=pick source, 1=pick destination
+        self._cursor = None
 
     @property
     def in_progress(self) -> bool:
-        return self._waiting
+        return self._phase > 0
+
+    def cancel(self) -> None:
+        if self._source_item and self._source_line_orig:
+            self._source_item.setLine(self._source_line_orig)
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            item, end_idx = self._nearest_endpoint(p)
+            if item is None:
+                return
+            self._source_item = item
+            self._source_end = end_idx
+            self._source_line_orig = QLineF(item.line())
+            self._phase = 1
+        elif self._phase == 1:
+            self._extend_to(p)
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 1 and self._source_item:
+            self._cursor = QPointF(p)
+            ln = self._source_item.line()
+            if self._source_end == 0:
+                self._source_item.setLine(QLineF(p, self._source_line_orig.p2()))
+            else:
+                self._source_item.setLine(QLineF(self._source_line_orig.p1(), p))
+
+    def _extend_to(self, dest: QPointF) -> None:
+        item = self._source_item
+        end = self._source_end
+        orig = self._source_line_orig
+        if item is None or orig is None:
+            self.reset()
+            return
+        item.setLine(orig)
+        if end == 0:
+            new_line = QLineF(dest, orig.p2())
+        else:
+            new_line = QLineF(orig.p1(), dest)
+        us = self.canvas.undo_stack
+        if us:
+            from .commands import ReshapeCommand
+            us.push(ReshapeCommand(item, orig, new_line))
+        else:
+            item.setLine(new_line)
+        self.reset()
+        self.canvas.viewport().update()
+
+    def idle_right_click(self, p: QPointF) -> None:
+        self._fillet_at(p)
+
+    def _nearest_endpoint(self, p: QPointF):
+        best_item = None
+        best_idx = None
+        best_d = _gs(self.canvas) * 1.5
+        if self.canvas.document is None:
+            return None, None
+        for layer in self.canvas.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                if isinstance(item, QGraphicsLineItem):
+                    ln = item.line()
+                    p1 = item.mapToScene(ln.p1())
+                    p2 = item.mapToScene(ln.p2())
+                    d1 = QLineF(p, p1).length()
+                    d2 = QLineF(p, p2).length()
+                    if d1 < best_d:
+                        best_d, best_item, best_idx = d1, item, 0
+                    if d2 < best_d:
+                        best_d, best_item, best_idx = d2, item, 1
+        return best_item, best_idx
+
+    def _fillet_at(self, p: QPointF) -> None:
+        if self.canvas.document is None:
+            return
+        lines = []
+        for layer in self.canvas.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                if isinstance(item, QGraphicsLineItem):
+                    ln = item.line()
+                    seg = QLineF(item.mapToScene(ln.p1()), item.mapToScene(ln.p2()))
+                    d = self._pt_seg_dist(p, seg)
+                    lines.append((d, item, seg))
+        lines.sort(key=lambda x: x[0])
+        if len(lines) < 2:
+            return
+        _, item_a, seg_a = lines[0]
+        _, item_b, seg_b = lines[1]
+        itype, ipt = seg_a.intersects(seg_b)
+        if itype == QLineF.IntersectionType.NoIntersection:
+            return
+        us = self.canvas.undo_stack
+        if us is None:
+            return
+        us.beginMacro("Fillet")
+        from .commands import ReshapeCommand
+        old_a = QLineF(item_a.line())
+        da1 = QLineF(p, seg_a.p1()).length()
+        da2 = QLineF(p, seg_a.p2()).length()
+        new_a = QLineF(seg_a.p1(), ipt) if da1 < da2 else QLineF(ipt, seg_a.p2())
+        new_a_l = QLineF(item_a.mapFromScene(new_a.p1()), item_a.mapFromScene(new_a.p2()))
+        us.push(ReshapeCommand(item_a, old_a, new_a_l))
+        old_b = QLineF(item_b.line())
+        db1 = QLineF(p, seg_b.p1()).length()
+        db2 = QLineF(p, seg_b.p2()).length()
+        new_b = QLineF(seg_b.p1(), ipt) if db1 < db2 else QLineF(ipt, seg_b.p2())
+        new_b_l = QLineF(item_b.mapFromScene(new_b.p1()), item_b.mapFromScene(new_b.p2()))
+        us.push(ReshapeCommand(item_b, old_b, new_b_l))
+        us.endMacro()
+        self.canvas.viewport().update()
+
+    @staticmethod
+    def _pt_seg_dist(p: QPointF, seg: QLineF) -> float:
+        a, b = seg.p1(), seg.p2()
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        lsq = dx * dx + dy * dy
+        if lsq < 1e-12:
+            return QLineF(p, a).length()
+        t = max(0, min(1, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / lsq))
+        return QLineF(p, QPointF(a.x() + t * dx, a.y() + t * dy)).length()
+
+
+# ═══════════════════════════════════════════════════════════ paint
+class OffsetTool(Tool):
+    """Offset: click source → dim input auto-pops (last distance) → move cursor
+    for direction → click to confirm. Right-click cancels."""
+    name = "offset"
+    _last_distance: float = 1.0
+
+    def reset(self) -> None:
+        self._source = None
+        self._cursor = None
+        self._phase = 0  # 0=pick source, 1=pick direction
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            pick = self.canvas.pick_item(p)
+            if pick is None:
+                return
+            self._source = pick
+            self._cursor = QPointF(p)
+            self._phase = 1
+            self.canvas.request_dim_input(p, _dim_text(self._last_distance))
+        elif self._phase == 1:
+            self._do_offset(self._source, self._cursor, self._last_distance)
+            self._phase = 0
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 1:
+            self._cursor = QPointF(p)
+
+    def cancel(self) -> None:
+        self.reset()
+        self.canvas.viewport().update()
 
     def set_dimension(self, value: float) -> None:
-        """Distance typed → execute the offset now."""
-        if not self._waiting or self._source is None or self._click_pos is None:
+        OffsetTool._last_distance = value
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase != 1 or self._source is None or self._cursor is None:
             return
-        self._do_offset(self._source, self._click_pos, value)
-        self._waiting = False
+        preview = self._compute_offset(self._source, self._cursor, self._last_distance)
+        if preview is None:
+            return
+        painter.setPen(self._preview_pen)
+        if isinstance(preview, QLineF):
+            painter.drawLine(preview)
+        elif isinstance(preview, QRectF):
+            painter.drawRect(preview)
+
+    def _compute_offset(self, item, cursor: QPointF, dist_grid: float):
+        gs = _gs(self.canvas)
+        d = dist_grid * gs
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            p1 = item.mapToScene(ln.p1())
+            p2 = item.mapToScene(ln.p2())
+            dx = p2.x() - p1.x()
+            dy = p2.y() - p1.y()
+            length = math.hypot(dx, dy)
+            if length < 1e-6:
+                return None
+            nx, ny = -dy / length, dx / length
+            mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+            if (cursor.x() - mid.x()) * nx + (cursor.y() - mid.y()) * ny < 0:
+                nx, ny = -nx, -ny
+            return QLineF(
+                QPointF(p1.x() + nx * d, p1.y() + ny * d),
+                QPointF(p2.x() + nx * d, p2.y() + ny * d))
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            center = r.center()
+            out = (QLineF(center, cursor).length() > QLineF(center, r.topLeft()).length())
+            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            return nr if nr.width() > 0 and nr.height() > 0 else None
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            center = r.center()
+            out = (QLineF(center, cursor).length() > r.width() / 2)
+            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            return nr if nr.width() > 0 and nr.height() > 0 else None
+        return None
 
     def _do_offset(self, item, click: QPointF, dist_grid: float) -> None:
         gs = _gs(self.canvas)
@@ -582,6 +804,332 @@ class OffsetTool(Tool):
                 new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 new_item.setData(0, {"zip": "", "note": ""})
                 self.canvas.add_item(new_item)
+
+
+# ═══════════════════════════════════════════════════════════ divide
+def _seg_dist(p: QPointF, seg: QLineF) -> float:
+    a, b = seg.p1(), seg.p2()
+    dx, dy = b.x() - a.x(), b.y() - a.y()
+    lsq = dx * dx + dy * dy
+    if lsq < 1e-12:
+        return QLineF(p, a).length()
+    t = max(0.0, min(1.0, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / lsq))
+    return QLineF(p, QPointF(a.x() + t * dx, a.y() + t * dy)).length()
+
+
+class DivideTool(Tool):
+    """Click a line / rect edge / polyline segment / circle → dim-input pops with
+    the last-used division count (persists). Type N, live preview shows the tick
+    marks, Enter (or click) commits N−1 interior points (N radial points for a
+    circle). The points are real osnap targets. Right-click cancels."""
+    name = "divide"
+    _last_count: int = 4
+
+    def reset(self) -> None:
+        self._item = None
+        self._pick_point = None
+        self._count = DivideTool._last_count
+        self._phase = 0       # 0 = pick segment, 1 = set count
+        self._ready = False    # consumes the picking-click's own release
+        self._preview_pts: list[QPointF] = []
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def cancel(self) -> None:
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            pick = self.canvas.pick_item(p)
+            if pick is None:
+                return
+            self._item = pick
+            self._pick_point = QPointF(p)
+            self._count = DivideTool._last_count
+            self._ready = False
+            self._phase = 1
+            self._recompute_preview()
+            self.canvas.request_dim_input(p, str(DivideTool._last_count))
+        elif self._phase == 1:
+            self._commit()
+
+    def on_release(self, p: QPointF) -> None:
+        if self._phase != 1:
+            return
+        if not self._ready:
+            self._ready = True   # swallow the release from the picking click
+            return
+        self._commit()           # Enter-path: on_release(QPointF()) after count set
+
+    def preview_dimension(self, value: float) -> None:
+        """Live: update the preview as the user types (no commit)."""
+        self._count = max(2, int(round(value)))
+        self._recompute_preview()
+        self.canvas.viewport().update()
+
+    def set_dimension(self, value: float) -> None:
+        """Enter/Tab: lock the count (commit happens via on_release)."""
+        self._count = max(2, int(round(value)))
+        DivideTool._last_count = self._count
+        self._recompute_preview()
+
+    def _recompute_preview(self) -> None:
+        if self._item is None:
+            self._preview_pts = []
+        else:
+            self._preview_pts = self._division_points(
+                self._item, self._pick_point, self._count)
+
+    def _commit(self) -> None:
+        if self._item is None:
+            self.reset()
+            return
+        pts = self._division_points(self._item, self._pick_point, self._count)
+        if not pts:
+            self.reset()
+            return
+        DivideTool._last_count = self._count
+        gs = _gs(self.canvas)
+        us = self.canvas.undo_stack
+        vis = getattr(self.canvas, '_div_visible', True)
+        if us:
+            us.beginMacro(f"Divide /{self._count}")
+        for sp in pts:
+            marker = _make_div_marker(sp, gs)
+            marker.setVisible(vis)
+            self.canvas.add_item(marker)
+        if us:
+            us.endMacro()
+        self.reset()
+        self.canvas.viewport().update()
+
+    def _division_points(self, item, click, n: int) -> list[QPointF]:
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            p1 = item.mapToScene(ln.p1())
+            p2 = item.mapToScene(ln.p2())
+            return _interior(p1, p2, n)
+        if isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            cx = (r.left() + r.right()) / 2.0
+            cy = (r.top() + r.bottom()) / 2.0
+            rx, ry = r.width() / 2.0, r.height() / 2.0
+            pts = []
+            for i in range(n):  # N radial points around the circumference
+                ang = 2.0 * math.pi * i / n - math.pi / 2.0  # start at top
+                pts.append(item.mapToScene(
+                    QPointF(cx + rx * math.cos(ang), cy + ry * math.sin(ang))))
+            return pts
+        if isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            corners = [item.mapToScene(c) for c in
+                       (r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft())]
+            edges = [QLineF(corners[i], corners[(i + 1) % 4]) for i in range(4)]
+            best = min(edges, key=lambda e: _seg_dist(click, e)) if click else edges[0]
+            return _interior(best.p1(), best.p2(), n)
+        if isinstance(item, QGraphicsPathItem):
+            path = item.path()
+            pts = [item.mapToScene(QPointF(path.elementAt(i).x, path.elementAt(i).y))
+                   for i in range(path.elementCount())]
+            segs = [QLineF(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+            if not segs:
+                return []
+            best = min(segs, key=lambda e: _seg_dist(click, e)) if click else segs[0]
+            return _interior(best.p1(), best.p2(), n)
+        return []
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase != 1 or not self._preview_pts:
+            return
+        gs = _gs(self.canvas)
+        s = gs * 0.25
+        pen = QPen(QColor("#C1140C"))
+        pen.setCosmetic(True)
+        pen.setWidthF(1.2)
+        painter.setPen(pen)
+        for sp in self._preview_pts:
+            painter.drawLine(QLineF(sp.x() - s, sp.y(), sp.x() + s, sp.y()))
+            painter.drawLine(QLineF(sp.x(), sp.y() - s, sp.x(), sp.y() + s))
+
+
+def _interior(p1: QPointF, p2: QPointF, n: int) -> list[QPointF]:
+    """N−1 equally-spaced interior points between p1 and p2."""
+    return [QPointF(p1.x() + (p2.x() - p1.x()) * i / n,
+                    p1.y() + (p2.y() - p1.y()) * i / n)
+            for i in range(1, n)]
+
+
+def _make_div_marker(scene_pt: QPointF, gs: float) -> QGraphicsPathItem:
+    """A small red '+' construction mark whose centre is an osnap target."""
+    s = gs * 0.25
+    path = QPainterPath()
+    path.moveTo(-s, 0); path.lineTo(s, 0)
+    path.moveTo(0, -s); path.lineTo(0, s)
+    item = QGraphicsPathItem(path)
+    pen = QPen(QColor("#C1140C"))
+    pen.setCosmetic(True)
+    pen.setWidthF(1.2)
+    item.setPen(pen)
+    item.setPos(scene_pt)
+    item.setData(0, {"zip": "", "note": ""})
+    item.setData(1, "div_point")
+    item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+    return item
+
+
+# ═══════════════════════════════════════════════════════════ rotate
+class RotateTool(Tool):
+    """Rotate the current selection. Click a pivot (snaps to centre / points /
+    grid), move the cursor to spin, click again to confirm. Free rotation when
+    Ortho is off; snaps to the Ortho angle (45°/90°…) when Ortho is on.
+    Right-click or Escape cancels."""
+    name = "rotate"
+
+    def reset(self) -> None:
+        self._items: list = []
+        self._pivot = None
+        self._phase = 0          # 0 = pick pivot, 1 = spinning
+        self._ref_angle = None
+        self._orig: dict = {}
+        self._cur_delta = 0.0
+        self._cursor = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def cancel(self) -> None:
+        self._restore()
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            self.cancel()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            items = [it for it in self.canvas.scene().selectedItems()]
+            if not items:
+                pick = self._pick_near(p)
+                if pick is not None:
+                    self.canvas.scene().clearSelection()
+                    pick.setSelected(True)
+                    items = [pick]
+            if not items:
+                return
+            self._items = items
+            self._pivot = QPointF(p)
+            self._orig = {it: (QPointF(it.pos()), QTransform(it.transform()))
+                          for it in self._items}
+            self._ref_angle = None
+            self._cur_delta = 0.0
+            self._phase = 1
+            self.canvas.viewport().update()
+        elif self._phase == 1:
+            self._commit()
+
+    def _pick_near(self, p: QPointF):
+        """Topmost item under p, or the nearest geometry within ~0.75 cell."""
+        pick = self.canvas.pick_item(p)
+        if pick is not None:
+            return pick
+        doc = self.canvas.document
+        if doc is None:
+            return None
+        best, best_d = None, _gs(self.canvas) * 0.75
+        for layer in doc.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                if item.data(1) == "div_point":
+                    continue
+                for seg in _item_segments(item):
+                    d = _seg_dist(p, seg)
+                    if d < best_d:
+                        best_d, best = d, item
+        return best
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase != 1 or self._pivot is None:
+            return
+        self._cursor = QPointF(p)
+        vx, vy = p.x() - self._pivot.x(), p.y() - self._pivot.y()
+        if math.hypot(vx, vy) < _gs(self.canvas) * 0.25:
+            return
+        ang = math.degrees(math.atan2(vy, vx))
+        if self._ref_angle is None:
+            self._ref_angle = ang
+        delta = ang - self._ref_angle
+        if getattr(self.canvas, '_ortho_enabled', False):
+            step = getattr(self.canvas, '_ortho_angle', 45) or 45
+            delta = round(delta / step) * step
+        self._cur_delta = delta
+        self._apply(delta)
+
+    def _apply(self, deg: float) -> None:
+        for item in self._items:
+            op, ot = self._orig[item]
+            s_old = QTransform(ot) * QTransform.fromTranslate(op.x(), op.y())
+            rot = (QTransform.fromTranslate(-self._pivot.x(), -self._pivot.y())
+                   * _pure_rotation(deg)
+                   * QTransform.fromTranslate(self._pivot.x(), self._pivot.y()))
+            s_new = s_old * rot
+            item.setPos(0.0, 0.0)
+            item.setTransform(s_new)
+        self.canvas.viewport().update()
+
+    def _restore(self) -> None:
+        for item, (op, ot) in self._orig.items():
+            item.setPos(op)
+            item.setTransform(ot)
+
+    def _commit(self) -> None:
+        if not self._items or self._pivot is None:
+            self.reset()
+            return
+        states = []
+        for item in self._items:
+            op, ot = self._orig[item]
+            states.append((item, op, ot,
+                           QPointF(item.pos()), QTransform(item.transform())))
+        us = self.canvas.undo_stack
+        if us:
+            from .commands import RotateCommand
+            us.push(RotateCommand(states))
+        self.reset()
+        self.canvas.viewport().update()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase != 1 or self._pivot is None:
+            return
+        gs = _gs(self.canvas)
+        s = gs * 0.3
+        pen = QPen(QColor("#9255E5"))
+        pen.setCosmetic(True)
+        pen.setWidthF(1.2)
+        painter.setPen(pen)
+        # pivot cross
+        painter.drawLine(QLineF(self._pivot.x() - s, self._pivot.y(),
+                                self._pivot.x() + s, self._pivot.y()))
+        painter.drawLine(QLineF(self._pivot.x(), self._pivot.y() - s,
+                                self._pivot.x(), self._pivot.y() + s))
+        if self._cursor is not None:
+            dash = QPen(QColor("#9255E5"))
+            dash.setCosmetic(True)
+            dash.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(dash)
+            painter.drawLine(QLineF(self._pivot, self._cursor))
+            _draw_dim_label(painter, self._cursor, f"{_dim_text(self._cur_delta)}°")
+
+
+def _pure_rotation(deg: float) -> QTransform:
+    t = QTransform()
+    t.rotate(deg)
+    return t
 
 
 class PaintTool(Tool):
@@ -682,7 +1230,7 @@ class PaintTool(Tool):
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         # Use a NON-black barrier color so black fill doesn't collide
         barrier = QPen(QColor(1, 0, 1, 255))  # barrier marker (never a real fill color)
-        barrier.setWidthF(1.0)
+        barrier.setWidthF(3.0)
         p.setPen(barrier)
 
         # Grid lines as barriers (only if wireframe is on)
@@ -703,7 +1251,7 @@ class PaintTool(Tool):
             if layer.kind != "vector" or not layer.visible:
                 continue
             for item in layer.items():
-                if item.data(1) == "cell_fill":
+                if item.data(1) in ("cell_fill", "div_point"):
                     continue
                 if not item.sceneBoundingRect().intersects(area):
                     continue
@@ -783,3 +1331,131 @@ class PaintTool(Tool):
                         DeleteItemsCommand(self.canvas.document, [item])
                     )
                 break
+
+
+# ═══════════════════════════════════════════════════════════ text (shared)
+def _load_vg5000(px: int) -> QFont:
+    import os
+    from PySide6.QtGui import QFontDatabase
+    font_path = os.path.join(
+        os.path.dirname(__file__), "assets", "fonts", "VG5000-Regular.otf")
+    fam = QFontDatabase.applicationFontFamilies(
+        QFontDatabase.addApplicationFont(font_path))
+    name = fam[0] if fam else "monospace"
+    f = QFont(name, px)
+    f.setPixelSize(px)
+    return f
+
+
+def _exit_text(tool, canvas) -> None:
+    """Shared Escape handler for both text tools."""
+    item = tool._active_text
+    if item is None:
+        return
+    item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+    item.clearFocus()
+    if not item.toPlainText().strip():
+        if canvas.undo_stack and canvas.document:
+            from .commands import DeleteItemsCommand
+            canvas.undo_stack.push(DeleteItemsCommand(canvas.document, [item]))
+    tool._active_text = None
+
+
+def _enter_existing(tool, item) -> None:
+    """Re-enter edit mode on an existing text item."""
+    item.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+    item.setFocus()
+    tool._active_text = item
+
+
+# ═══════════════════════════════════════════════════════════ word text
+class WordTextTool(Tool):
+    """Flowing free-text entry, 50-char line budget."""
+    name = "word"
+
+    _FONT_PX = 12
+    _LINE_BUDGET = 50
+
+    def reset(self) -> None:
+        self._active_text = None
+
+    def on_press(self, p: QPointF) -> None:
+        gs = _gs(self.canvas)
+        for item in self.canvas.scene().items(p):
+            if isinstance(item, QGraphicsTextItem) and item.data(1) == "word_text":
+                _enter_existing(self, item)
+                return
+
+        cx = math.floor(p.x() / gs) * gs
+        cy = math.floor(p.y() / gs) * gs
+        pad = gs * 0.1
+
+        font = _load_vg5000(self._FONT_PX)
+        from PySide6.QtGui import QFontMetricsF
+        cw = QFontMetricsF(font).horizontalAdvance("M")
+
+        text_item = QGraphicsTextItem("")
+        text_item.setFont(font)
+        text_item.setDefaultTextColor(QColor(DEFAULT_STROKE))
+        text_item.setTextWidth(cw * self._LINE_BUDGET)
+        text_item.setPos(cx + pad, cy + pad)
+        text_item.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+        text_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        text_item.setData(0, {"zip": "", "note": ""})
+        text_item.setData(1, "word_text")
+        self.canvas.add_item(text_item)
+        text_item.setFocus()
+        self._active_text = text_item
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            _exit_text(self, self.canvas)
+
+
+# ═══════════════════════════════════════════════════════════ cell text
+class CellTextTool(Tool):
+    """1 character per grid cell, graph-paper style."""
+    name = "cell"
+
+    _FONT_PX = 14
+    _LINE_BUDGET = 50
+
+    def reset(self) -> None:
+        self._active_text = None
+
+    def on_press(self, p: QPointF) -> None:
+        gs = _gs(self.canvas)
+        for item in self.canvas.scene().items(p):
+            if isinstance(item, QGraphicsTextItem) and item.data(1) == "cell_text":
+                _enter_existing(self, item)
+                return
+
+        cx = math.floor(p.x() / gs) * gs
+        cy = math.floor(p.y() / gs) * gs
+
+        font = _load_vg5000(self._FONT_PX)
+        from PySide6.QtGui import QFontMetricsF
+        cw = QFontMetricsF(font).horizontalAdvance("M")
+        spacing = gs - cw
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
+
+        text_item = QGraphicsTextItem("")
+        text_item.setFont(font)
+        text_item.setDefaultTextColor(QColor(DEFAULT_STROKE))
+        text_item.setTextWidth(gs * self._LINE_BUDGET)
+        text_item.setPos(cx, cy)
+        text_item.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+        text_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        text_item.setData(0, {"zip": "", "note": ""})
+        text_item.setData(1, "cell_text")
+        doc = text_item.document()
+        fmt = doc.rootFrame().frameFormat()
+        fmt.setMargin(0)
+        doc.rootFrame().setFrameFormat(fmt)
+        self.canvas.add_item(text_item)
+        text_item.setFocus()
+        self._active_text = text_item
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            _exit_text(self, self.canvas)

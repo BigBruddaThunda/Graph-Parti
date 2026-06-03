@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    CircleTool, LineTool, OffsetTool, PaintTool, PolylineTool, RectTool, SelectTool, TrimTool,
+    CellTextTool, CircleTool, DivideTool, ExtendTool, LineTool, OffsetTool,
+    PaintTool, PolylineTool, RectTool, RotateTool, SelectTool, TrimTool, WordTextTool,
 )
 
 _SCENE_HALF = 100_000
@@ -28,6 +29,18 @@ _PALETTE = [
     "#2464E5", "#9255E5", "#3C3C3C", "#FFFFFF",
     "#E08080", "#F5C2AF", "#FCE4A8", "#7FBF7F",
     "#80B0F0", "#C4A8F0", "#808080", "#F5F5DC",
+]
+
+_SCL_GROUPS = [
+    ("Op", ["📍", "🧲", "🤌", "👀", "🐋", "🧸",
+            "🚀", "🥨", "🦢", "🦉", "🪵", "✒️"]),
+    ("Ax", ["🏛", "🔨", "🌹", "🪐", "⌛", "🐬"]),
+    ("Or", ["🐂", "⛽", "🦋", "🧮",
+            "🏟", "🌾", "⚖", "🖼"]),
+    ("Co", ["⚫", "🟢", "🔵", "🟣", "🔴", "🟠", "🟡", "⚪"]),
+    ("Md", ["🛒", "🪡", "🍗", "➕", "➖", "±"]),
+    ("Bk", ["♨️", "🎯", "🔢", "🧈", "🫀", "▶️", "🎼", "♟️", "🪜", "🌎", "🎱",
+            "🌋", "🪞", "🗿", "🛠", "🧩", "🪫", "🏖", "🏗", "🧬", "🚂", "🔠"]),
 ]
 
 # Line stroke colors (row 1 = structure/primary, row 2 = accent/dark)
@@ -111,6 +124,68 @@ class ColorPalette(QWidget):
         return self._buttons[self._active].color()
 
 
+class DraggableEmojiButton(QToolButton):
+    """Emoji button: click = insert text, drag = place a book onto the canvas."""
+    emoji_clicked = Signal(str)
+    emoji_dragged = Signal(str)
+
+    def __init__(self, glyph: str, parent=None) -> None:
+        super().__init__(parent)
+        self._glyph = glyph
+        self._drag_start = None
+        self.setText(glyph)
+        self.setFixedSize(22, 22)
+        self.setStyleSheet(
+            "QToolButton { font-size:13px; padding:0; border:1px solid #ccc; }"
+            "QToolButton:hover { background:#e0e0e0; }"
+        )
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (self._drag_start is not None
+                and (event.position().toPoint() - self._drag_start).manhattanLength() > 8):
+            from PySide6.QtGui import QDrag
+            from PySide6.QtCore import QMimeData
+            drag = QDrag(self)
+            mime = QMimeData()
+            mime.setText(self._glyph)
+            mime.setData("application/x-scl-glyph", self._glyph.encode("utf-8"))
+            drag.setMimeData(mime)
+            drag.exec(Qt.DropAction.CopyAction)
+            self._drag_start = None
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if (self._drag_start is not None
+                and (event.position().toPoint() - self._drag_start).manhattanLength() <= 8):
+            self.emoji_clicked.emit(self._glyph)
+        self._drag_start = None
+        super().mouseReleaseEvent(event)
+
+
+class EmojiGroupWidget(QWidget):
+    """One SCL group: 2-row grid of draggable emoji buttons."""
+    emoji_clicked = Signal(str)
+    emoji_dragged = Signal(str)
+
+    def __init__(self, glyphs: list[str], parent=None) -> None:
+        super().__init__(parent)
+        grid = QGridLayout(self)
+        grid.setSpacing(1)
+        grid.setContentsMargins(0, 0, 0, 0)
+        cols = (len(glyphs) + 1) // 2
+        for i, glyph in enumerate(glyphs):
+            btn = DraggableEmojiButton(glyph)
+            btn.emoji_clicked.connect(self.emoji_clicked.emit)
+            btn.emoji_dragged.connect(self.emoji_dragged.emit)
+            grid.addWidget(btn, i // cols, i % cols)
+
+
 class LayerButton(QToolButton):
     right_clicked = Signal()
 
@@ -148,6 +223,11 @@ class CanvasWidget(QWidget):
             "trim": TrimTool(self.view),
             "offset": OffsetTool(self.view),
             "paint": PaintTool(self.view),
+            "word": WordTextTool(self.view),
+            "cell": CellTextTool(self.view),
+            "extend": ExtendTool(self.view),
+            "divide": DivideTool(self.view),
+            "rotate": RotateTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -194,6 +274,28 @@ class CanvasWidget(QWidget):
 
         self._tool_actions["line"].setChecked(True)
         self.view.set_tool(self._tools["line"])
+        self.view._extend_tool = self._tools["extend"]
+        self._file_path = None
+
+        save_act = QAction("Save", self)
+        save_act.setShortcut(QKeySequence.StandardKey.Save)
+        save_act.triggered.connect(self._save)
+        self.addAction(save_act)
+
+        open_act = QAction("Open", self)
+        open_act.setShortcut(QKeySequence.StandardKey.Open)
+        open_act.triggered.connect(self._open)
+        self.addAction(open_act)
+
+        export_act = QAction("Export PNG", self)
+        export_act.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        export_act.triggered.connect(self._export_png)
+        self.addAction(export_act)
+
+        orders_act = QAction("5 Orders", self)
+        orders_act.setShortcut(QKeySequence("Ctrl+5"))
+        orders_act.triggered.connect(self._draw_five_orders)
+        self.addAction(orders_act)
 
     # ─────────────────────────────────────────────────── toolbar
     def _build_toolbar(self) -> QToolBar:
@@ -206,7 +308,10 @@ class CanvasWidget(QWidget):
             ("select", "Select", "V"), ("line", "Line", "L"),
             ("polyline", "Polyline", "P"), ("rect", "Rect", "R"),
             ("circle", "Circle", "C"), ("trim", "Trim", "T"),
+            ("extend", "Extend", ""), ("divide", "Divide", "D"),
+            ("rotate", "Rotate", ""),
             ("offset", "Offset", "O"), ("paint", "Paint", "B"),
+            ("word", "Word", "A"), ("cell", "Cell", "G"),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
@@ -243,12 +348,35 @@ class CanvasWidget(QWidget):
         tb.addWidget(self._ortho_btn)
 
         tb.addSeparator()
+        # Stacked undo/redo icon buttons (↶ over ↷) to save horizontal space
+        ur_widget = QWidget()
+        ur_lay = QVBoxLayout(ur_widget)
+        ur_lay.setContentsMargins(0, 0, 0, 0)
+        ur_lay.setSpacing(0)
+        undo_btn = QToolButton()
+        undo_btn.setText("↶")  # ↶
+        undo_btn.setFixedSize(24, 15)
+        undo_btn.setToolTip("Undo (Ctrl+Z)")
+        redo_btn = QToolButton()
+        redo_btn.setText("↷")  # ↷
+        redo_btn.setFixedSize(24, 15)
+        redo_btn.setToolTip("Redo (Ctrl+Y)")
+        undo_btn.clicked.connect(self.undo_stack.undo)
+        redo_btn.clicked.connect(self.undo_stack.redo)
+        undo_btn.setEnabled(self.undo_stack.canUndo())
+        redo_btn.setEnabled(self.undo_stack.canRedo())
+        self.undo_stack.canUndoChanged.connect(undo_btn.setEnabled)
+        self.undo_stack.canRedoChanged.connect(redo_btn.setEnabled)
+        ur_lay.addWidget(undo_btn)
+        ur_lay.addWidget(redo_btn)
+        tb.addWidget(ur_widget)
+        # Keep keyboard shortcuts via hidden actions
         undo_act = self.undo_stack.createUndoAction(self, "Undo")
         undo_act.setShortcut(QKeySequence.StandardKey.Undo)
         redo_act = self.undo_stack.createRedoAction(self, "Redo")
         redo_act.setShortcut(QKeySequence.StandardKey.Redo)
-        tb.addAction(undo_act)
-        tb.addAction(redo_act)
+        self.addAction(undo_act)
+        self.addAction(redo_act)
 
         # ── 16-swatch paint color palette (2×8) ──
         tb.addSeparator()
@@ -259,6 +387,14 @@ class CanvasWidget(QWidget):
         tb.addWidget(self._palette)
         self._palette.color_selected.connect(self._on_color_selected)
 
+        self._fill_toggle = QAction("Fill", self)
+        self._fill_toggle.setCheckable(True)
+        self._fill_toggle.setChecked(False)
+        self._fill_toggle.setToolTip("Auto-fill shapes with paint color (F)")
+        self._fill_toggle.setShortcut(QKeySequence("F"))
+        self._fill_toggle.toggled.connect(self._on_fill_toggled)
+        tb.addAction(self._fill_toggle)
+
         # ── 16-swatch line color palette (2×8) ──
         tb.addSeparator()
         line_arrow = QAction("Lines →", self)
@@ -268,20 +404,36 @@ class CanvasWidget(QWidget):
         tb.addWidget(self._line_palette)
         self._line_palette.color_selected.connect(self._on_line_color_selected)
 
+        # ── 61 SCL emoji palette (2-row grids per group) ──
+        tb.addSeparator()
+        scl_arrow = QAction("SCL →", self)
+        scl_arrow.setEnabled(False)
+        tb.addAction(scl_arrow)
+        for _label, glyphs in _SCL_GROUPS:
+            grp = EmojiGroupWidget(glyphs)
+            grp.emoji_clicked.connect(self._on_emoji_clicked)
+            tb.addWidget(grp)
+
         return tb
 
     def _activate_tool(self, key: str) -> None:
         self.view.set_tool(self._tools[key])
 
     def _on_color_selected(self, color: QColor) -> None:
-        # Set color FIRST, then activate (so tool has the right color on activate)
         paint = self._tools.get("paint")
         if paint:
             paint.set_color(color)
-        # Only switch tool if not already on paint (avoids resetting mid-work)
-        if self.view.active_tool is not self._tools.get("paint"):
+        self._fill_toggle.setChecked(True)
+        self.view.set_fill(color.name())
+        if self.view.active_tool is self._tools.get("select"):
             self._tool_actions["paint"].setChecked(True)
             self._activate_tool("paint")
+
+    def _on_fill_toggled(self, on: bool) -> None:
+        if on:
+            self.view.set_fill(self._palette.active_color().name())
+        else:
+            self.view.set_fill(None)
 
     def _on_line_color_selected(self, color: QColor) -> None:
         self.view.set_stroke(color.name())
@@ -289,9 +441,64 @@ class CanvasWidget(QWidget):
             self._tool_actions["line"].setChecked(True)
             self._activate_tool("line")
 
+    def _on_emoji_clicked(self, glyph: str) -> None:
+        from PySide6.QtWidgets import QGraphicsTextItem
+        from PySide6.QtGui import QTextCursor
+        focus = self.view.scene().focusItem()
+        if isinstance(focus, QGraphicsTextItem):
+            cursor = focus.textCursor()
+            cursor.insertText(glyph)
+            focus.setTextCursor(cursor)
+
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)
         self._ortho_btn.setToolTip(f"Ortho lock ({angle}°)")
+
+    # ─────────────────────────────────────────────────── save / load
+    def _save(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        if self._file_path is None:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save Drawing", "", "PARTI files (*.parti);;JSON (*.json)")
+            if not path:
+                return
+            self._file_path = path
+        self.document.save_json(self._file_path)
+        self._status.setText(f"Saved: {self._file_path}")
+
+    def _open(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Drawing", "", "PARTI files (*.parti);;JSON (*.json)")
+        if not path:
+            return
+        self.undo_stack.clear()
+        self.document.load_json(path)
+        self._file_path = path
+        self.view.viewport().update()
+        self._status.setText(f"Opened: {path}")
+
+    def _export_png(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        from PySide6.QtGui import QImage, QPainter
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PNG", "", "PNG images (*.png)")
+        if not path:
+            return
+        rect = self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20)
+        img = QImage(int(rect.width()), int(rect.height()), QImage.Format.Format_ARGB32)
+        img.fill(QColor("#F2EBD8"))
+        painter = QPainter(img)
+        self.scene.render(painter, source=rect)
+        painter.end()
+        img.save(path)
+        self._status.setText(f"Exported: {path}")
+
+    def _draw_five_orders(self) -> None:
+        from .orders import generate_five_orders
+        generate_five_orders(self.view)
+        self.view.viewport().update()
+        self._status.setText("Five Classical Orders drawn (Ctrl+Z to undo)")
 
     # ─────────────────────────────────────────────────── status
     def _refresh_status(self) -> None:
