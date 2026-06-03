@@ -37,8 +37,95 @@ _REVELATOR_H = 28          # px — matches graph-parti toolbar height
 _DIAL_ACTIVE_PT = 14       # compact dial glyph size (vs 22pt in base shape)
 
 
+class _ClickLabel(QLabel):
+    """A QLabel that emits clicked on left-press (for the dial on/off toggle)."""
+    clicked = Signal()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class _DragButton(QToolButton):
+    """A cockpit button that is also a drag source emitting (mime, payload).
+    One seam for every spawn gesture: z-pad arrows, the 🍗 leg/handback, etc.
+    Left-click still works as a normal button — only a drag fires the payload."""
+
+    def __init__(self, glyph: str, mime: str, payload: str,
+                 tooltip: str = "", parent=None) -> None:
+        super().__init__(parent)
+        self.setText(glyph)
+        self.setAutoRaise(True)
+        self._mime = mime
+        self._payload = payload
+        self._press = None
+        if tooltip:
+            self.setToolTip(tooltip)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (self._press is not None
+                and (event.position().toPoint() - self._press).manhattanLength() > 8):
+            from PySide6.QtGui import QDrag
+            from PySide6.QtCore import QMimeData
+            drag = QDrag(self)
+            mime = QMimeData()
+            mime.setData(self._mime, self._payload.encode("utf-8"))
+            mime.setText(self._payload)
+            drag.setMimeData(mime)
+            drag.exec(Qt.DropAction.CopyAction)
+            self._press = None
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._press = None
+        super().mouseReleaseEvent(event)
+
+
+class _ZipPlate(QLabel):
+    """The [Archideck] copper plate — drag it onto the canvas to spawn a zip box
+    at the current dial coordinate. Right-click / Esc during the drag cancels."""
+
+    def __init__(self, zip_provider, parent=None) -> None:
+        super().__init__("Archideck", parent)
+        self._zip_provider = zip_provider
+        self._press = None
+        self.setToolTip("drag onto the canvas → drop a zip box (Esc cancels)")
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (self._press is not None
+                and (event.position().toPoint() - self._press).manhattanLength() > 8):
+            from PySide6.QtGui import QDrag
+            from PySide6.QtCore import QMimeData
+            facets = self._zip_provider()
+            payload = ",".join((g if g else "_") for g in facets)
+            drag = QDrag(self)
+            mime = QMimeData()
+            mime.setData("application/x-scl-zip", payload.encode("utf-8"))
+            mime.setText(payload)
+            drag.setMimeData(mime)
+            drag.exec(Qt.DropAction.CopyAction)
+            self._press = None
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._press = None
+        super().mouseReleaseEvent(event)
+
+
 class DialReel(QWidget):
-    """One zip dial reel: prev / ACTIVE / next, spun by ▲/▼."""
+    """One zip dial reel: prev / ACTIVE / next, spun by ▲/▼.
+    Click the ACTIVE glyph to toggle the dial off (blank) → partial zip."""
 
     changed = Signal()
 
@@ -46,6 +133,7 @@ class DialReel(QWidget):
         super().__init__(parent)
         self.glyphs = list(glyphs)
         self.index = 0
+        self.enabled = True
 
         lay = QVBoxLayout(self)
         m = 1 if compact else 2
@@ -66,12 +154,14 @@ class DialReel(QWidget):
         self._prev.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._prev.setStyleSheet("color: rgba(0,0,0,0.30);")
 
-        self._active = QLabel()
+        self._active = _ClickLabel()
         self._active.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._active.setToolTip("click to toggle this dial off (partial zip)")
         pt = _DIAL_ACTIVE_PT if compact else 22
         af = self._active.font()
         af.setPointSize(pt)
         self._active.setFont(af)
+        self._active.clicked.connect(self.toggle)
 
         self._next = QLabel()
         self._next.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -83,6 +173,13 @@ class DialReel(QWidget):
 
     def spin(self, delta: int) -> None:
         self.index = (self.index + delta) % len(self.glyphs)
+        if not self.enabled:        # spinning re-enables a blanked dial
+            self.enabled = True
+        self._refresh()
+        self.changed.emit()
+
+    def toggle(self) -> None:
+        self.enabled = not self.enabled
         self._refresh()
         self.changed.emit()
 
@@ -91,13 +188,23 @@ class DialReel(QWidget):
         self._prev.setText(self.glyphs[(self.index - 1) % n])
         self._active.setText(self.glyphs[self.index])
         self._next.setText(self.glyphs[(self.index + 1) % n])
+        self._active.setStyleSheet(
+            "" if self.enabled else "color: rgba(0,0,0,0.22);")
 
     def glyph(self) -> str:
         return self.glyphs[self.index]
 
+    def value(self) -> str | None:
+        """The dialed glyph, or None when the dial is toggled off (blank)."""
+        return self.glyphs[self.index] if self.enabled else None
+
 
 class ArchideckPanel(QWidget):
     """The portrait cockpit — three-thirds layout v2."""
+
+    # Active zip (operator, axis, order, color) glyphs — the host wires this to
+    # the canvas so drawings file at the dialed district.
+    zip_changed = Signal(str, str, str, str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -300,12 +407,13 @@ class ArchideckPanel(QWidget):
             b.setText(g)
             b.setAutoRaise(True)
             row.addWidget(b)
-        plate = QLabel("Archideck")
+        plate = _ZipPlate(self.current_zip)
         plate.setAlignment(Qt.AlignmentFlag.AlignCenter)
         plate.setStyleSheet(
             f"background:{COPPER}; color:#3A2A1A; font-weight:bold;"
             " border:1px solid #8A5A3A; border-radius:4px; padding:4px 10px;"
         )
+        plate.setCursor(Qt.CursorShape.OpenHandCursor)
         row.addWidget(plate)
         for g in AXIS_RIGHT:
             b = QToolButton()
@@ -350,10 +458,22 @@ class ArchideckPanel(QWidget):
         pad_map = {
             (0, 1): "➕", (1, 0): "🛒", (1, 1): "🍗", (1, 2): "🪡", (2, 1): "➖",
         }
+        # up/down/left/right = draggable flow arrows; center 🍗 = the leg/handback
+        dir_map = {(0, 1): "up", (2, 1): "down", (1, 0): "left", (1, 2): "right"}
         for (r, c), g in pad_map.items():
-            b = QToolButton()
-            b.setText(g)
-            b.setAutoRaise(True)
+            direction = dir_map.get((r, c))
+            if direction:
+                b = _DragButton(g, "application/x-scl-arrow", direction,
+                                f"drag onto the canvas → {direction} arrow "
+                                "(flow / order / direction)")
+            elif (r, c) == (1, 1):  # center 🍗 — leg it back to the Archideck
+                b = _DragButton(g, "application/x-scl-handback", "leg",
+                                "drag onto a district → hand it back to the "
+                                "Archideck (system saves + flags for the round table)")
+            else:
+                b = QToolButton()
+                b.setText(g)
+                b.setAutoRaise(True)
             grid.addWidget(b, r, c)
 
         row.addWidget(zpad_frame, 1)  # ~1/3 width
@@ -364,8 +484,24 @@ class ArchideckPanel(QWidget):
     # ZIP DISPLAY — updates the revelator from the dials
     # ============================================================
     def _refresh_zip(self) -> None:
-        glyphs = " ".join(d.glyph() for d in self._dials)
+        glyphs = " ".join((d.value() or "_") for d in self._dials)
         self._zip_glyphs.setText(f"[ {glyphs} ]")
+        op, ax, orr, col = ((d.value() or "") for d in self._dials)
+        self.zip_changed.emit(op, ax, orr, col)
+
+    def current_zip(self) -> tuple:
+        return tuple(d.value() for d in self._dials)
+
+    # ============================================================
+    # HANDBACK — a 🍗 legged in from the canvas (district → Archideck)
+    # ============================================================
+    def receive_handback(self, summary: str) -> None:
+        """A district was legged back to the Archideck. Log it to the terminal —
+        the seam the future round table reads for wiring / upkeep / tasks."""
+        self._handbacks = getattr(self, "_handbacks", [])
+        self._handbacks.append(summary)
+        if hasattr(self, "_terminal_output"):
+            self._terminal_output.appendPlainText(f"🍗 handback ← {summary}")
 
     # ============================================================
     # COLOR SHELL TINT — color dial → whole panel background

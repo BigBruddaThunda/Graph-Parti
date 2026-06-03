@@ -33,6 +33,14 @@ class HostWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.canvas = CanvasWidget()       # left — fills
         self.cockpit = ArchideckPanel()    # right — portrait cockpit
+        # Cockpit zip dial → canvas facets (host wires it; graphparti stays
+        # isolated — it receives plain glyph strings, never imports the cockpit).
+        self.cockpit.zip_changed.connect(self.canvas.set_facets)
+        self.canvas.set_facets(*self.cockpit.current_zip())
+
+        # Canvas 🍗 handback → cockpit log (the district ties into the Archideck).
+        self.canvas.view.handback_requested.connect(self.cockpit.receive_handback)
+
         splitter.addWidget(self.canvas)
         splitter.addWidget(self.cockpit)
         splitter.setStretchFactor(0, 1)    # extra width goes to the canvas
