@@ -90,7 +90,7 @@ class HostWindow(QMainWindow):
     # ── Shell mode ─────────────────────────────────────────────────
 
     _SHELL_CMDS = {"claude", "codex", "gsk", "ollama", "lms", "pip", "git",
-                   "python", "node", "npm", "npx", "cmd", "powershell", "pwsh"}
+                   "python", "node", "npm", "npx"}
 
     def _is_shell(self, text: str) -> bool:
         if text.startswith("!"):
@@ -98,16 +98,40 @@ class HostWindow(QMainWindow):
         first = text.split()[0].lower() if text.strip() else ""
         return first in self._SHELL_CMDS
 
-    def _run_shell(self, cmd: str) -> None:
-        if cmd.startswith("!"):
-            cmd = cmd[1:].strip()
+    def _translate_cmd(self, text: str) -> str:
+        """Translate interactive CLI commands into non-interactive equivalents."""
+        if text.startswith("!"):
+            return text[1:].strip()
+        parts = text.split(maxsplit=1)
+        cmd = parts[0].lower()
+        rest = parts[1] if len(parts) > 1 else ""
+
+        if cmd == "claude":
+            if not rest:
+                return 'claude -p "hello — what can you do?"'
+            if rest.startswith("-") or rest.startswith("/"):
+                return text
+            return f'claude -p "{rest}"'
+
+        if cmd == "codex":
+            if not rest:
+                return "codex --help"
+            if rest.startswith("exec") or rest.startswith("-") or rest.startswith("/"):
+                return text
+            return f'codex exec "{rest}"'
+
+        return text
+
+    def _run_shell(self, raw_cmd: str) -> None:
+        cmd = self._translate_cmd(raw_cmd)
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self._shell_proc = subprocess.Popen(
             cmd, shell=True,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             stdin=subprocess.PIPE,
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            cwd=repo_dir,
             env={**os.environ, "PYTHONIOENCODING": "utf-8",
-                 "PYTHONUNBUFFERED": "1"},
+                 "PYTHONUNBUFFERED": "1", "NO_COLOR": "1"},
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         self._shell_stdin = self._shell_proc.stdin
@@ -116,7 +140,8 @@ class HostWindow(QMainWindow):
             try:
                 for raw in iter(self._shell_proc.stdout.readline, b""):
                     line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
-                    self.cockpit.append_terminal(line)
+                    if line:
+                        self.cockpit.append_terminal(line)
             except Exception:
                 pass
             code = self._shell_proc.wait()
@@ -133,6 +158,12 @@ class HostWindow(QMainWindow):
                 self._shell_stdin.flush()
             except Exception:
                 self.cockpit.append_terminal("(shell stdin closed)", prefix="!")
+
+    def _kill_shell(self) -> None:
+        proc = getattr(self, "_shell_proc", None)
+        if proc is not None:
+            proc.terminate()
+            self.cockpit.append_terminal("(killed)", prefix="~")
 
     # ── Terminal input router ────────────────────────────────────
 
