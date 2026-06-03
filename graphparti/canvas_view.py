@@ -29,6 +29,7 @@ from .commands import AddItemCommand, DeleteItemsCommand, MoveItemsCommand, Resh
 class CanvasView(QGraphicsView):
     cursor_moved = Signal(QPointF, str)  # resolved scene position, snap kind
     zoom_changed = Signal(float)
+    handback_requested = Signal(str)     # district legged back to the Archideck
 
     ZOOM_STEP = 1.15
     MIN_SCALE = 0.05
@@ -51,6 +52,9 @@ class CanvasView(QGraphicsView):
         self.undo_stack = None
         self._stroke_color = "#3C3C3C"
         self._fill_color = None
+        # Active zip facets (operator, axis, order, color) — set by the host from
+        # the cockpit dial. Plain glyph strings; graphparti never imports the cockpit.
+        self.current_facets: tuple = (None, None, None, None)
         self._e_held = False
         self._e_prev_tool = None
         self._extend_tool = None  # set by CanvasWidget after tool creation
@@ -187,6 +191,12 @@ class CanvasView(QGraphicsView):
     def set_fill(self, color: str | None) -> None:
         self._fill_color = color
 
+    def set_current_facets(self, operator=None, axis=None, order=None, color=None) -> None:
+        """Host-callable: set the active zip facets from the cockpit dial.
+        Empty strings (blanked dials) normalize to None (partial district)."""
+        norm = lambda g: g if g else None
+        self.current_facets = (norm(operator), norm(axis), norm(order), norm(color))
+
     def add_item(self, item: QGraphicsItem) -> None:
         layer = self.document.active_vector_layer() if self.document else None
         if layer is None:
@@ -198,7 +208,7 @@ class CanvasView(QGraphicsView):
 
     # ----------------------------------------------------- selection / editing
     def _active_layer_items(self) -> set:
-        """Items selectable under the current layer mode (parti/both/trace)."""
+        """Items selectable under the current layer mode (parti/both/trace/book)."""
         if self.document is None:
             return set()
         result: set = set()
@@ -211,6 +221,10 @@ class CanvasView(QGraphicsView):
             tl = self.document.layers[1]  # trace (vector)
             if hasattr(tl, 'items'):
                 result |= set(tl.items())
+        if mode == "book" and len(self.document.layers) > 2:
+            bl = self.document.layers[2]  # book (vector — zip boxes)
+            if hasattr(bl, 'items'):
+                result |= set(bl.items())
         return result
 
     def pick_item(self, scene_pos: QPointF):
@@ -597,6 +611,11 @@ class CanvasView(QGraphicsView):
                 self._start_resize(item, hidx, raw_scene)
                 event.accept()
                 return
+            # Select + click on a district's tail/free-text → edit it in place
+            if (self._tool_active() and self.active_tool.name == "select"
+                    and self._focus_zipbox_text(raw_scene)):
+                event.accept()
+                return
             if self._tool_active():
                 self.active_tool.on_press(self._scene_pos(event))
                 self.viewport().update()
@@ -777,22 +796,60 @@ class CanvasView(QGraphicsView):
         super().keyReleaseEvent(event)
 
     # ----------------------------------------- drag-and-drop (reference images)
+    _DRAG_FORMATS = ("application/x-scl-glyph", "application/x-scl-zip",
+                     "application/x-scl-arrow", "application/x-scl-handback")
+
     def dragEnterEvent(self, event) -> None:
         md = event.mimeData()
-        if md.hasImage() or md.hasUrls() or md.hasFormat("application/x-scl-glyph"):
+        if md.hasImage() or md.hasUrls() or any(md.hasFormat(f) for f in self._DRAG_FORMATS):
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event) -> None:
         md = event.mimeData()
-        if md.hasImage() or md.hasUrls() or md.hasFormat("application/x-scl-glyph"):
+        if md.hasImage() or md.hasUrls() or any(md.hasFormat(f) for f in self._DRAG_FORMATS):
             event.acceptProposedAction()
         else:
             super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
         md = event.mimeData()
+
+        # ── SCL handback (drag 🍗 onto a district → leg it to the Archideck) ──
+        if md.hasFormat("application/x-scl-handback"):
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self._leg_handback(scene_pos)
+            event.acceptProposedAction()
+            self.viewport().update()
+            return
+
+        # ── SCL arrow drop (drag a z-pad direction → flow/direction arrow) ──
+        if md.hasFormat("application/x-scl-arrow"):
+            direction = bytes(md.data("application/x-scl-arrow")).decode("utf-8")
+            scene_pos = self.mapToScene(event.position().toPoint())
+            if self.snap_enabled:
+                gs = self.grid_spacing
+                scene_pos = QPointF(round(scene_pos.x() / gs) * gs,
+                                    round(scene_pos.y() / gs) * gs)
+            self._drop_arrow(direction, scene_pos)
+            event.acceptProposedAction()
+            self.viewport().update()
+            return
+
+        # ── SCL zip drop (drag the [Archideck] plate → spawn a zip box) ──
+        if md.hasFormat("application/x-scl-zip"):
+            raw = bytes(md.data("application/x-scl-zip")).decode("utf-8")
+            facets = tuple((g if g != "_" else None) for g in raw.split(","))
+            scene_pos = self.mapToScene(event.position().toPoint())
+            if self.snap_enabled:
+                gs = self.grid_spacing
+                scene_pos = QPointF(round(scene_pos.x() / gs) * gs,
+                                    round(scene_pos.y() / gs) * gs)
+            self._drop_zip_box(facets, scene_pos)
+            event.acceptProposedAction()
+            self.viewport().update()
+            return
 
         # ── SCL glyph drop (drag from emoji palette → place book) ──
         if md.hasFormat("application/x-scl-glyph"):
@@ -851,13 +908,32 @@ class CanvasView(QGraphicsView):
 
         super().dropEvent(event)
 
-    # ----------------------------------------- image resize handles
+    # ----------------------------------------- resize handles (Select + Snap-off)
     def _selected_pixmap(self):
         """Return the single selected QGraphicsPixmapItem, if any."""
         from PySide6.QtWidgets import QGraphicsPixmapItem
         sel = self.scene().selectedItems()
         if len(sel) == 1 and isinstance(sel[0], QGraphicsPixmapItem):
             return sel[0]
+        return None
+
+    def _resizable_selected(self):
+        """The single selected resizable item (image or zip box) — or None.
+        Resize is tied to Select + Snap OFF: snap is the lock (move-only when on),
+        snap-off lets the same Select drag resize. System-wide, no separate tool."""
+        if self.snap_enabled:
+            return None
+        if not (self.active_tool and self.active_tool.name == "select"):
+            return None
+        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem
+        sel = self.scene().selectedItems()
+        if len(sel) != 1:
+            return None
+        it = sel[0]
+        if isinstance(it, QGraphicsPixmapItem):
+            return it
+        if isinstance(it, QGraphicsRectItem) and it.data(1) == "zip_box":
+            return it
         return None
 
     def _handle_rects(self, item):
@@ -875,26 +951,25 @@ class CanvasView(QGraphicsView):
         return [QRectF(p.x() - hs, p.y() - hs, hs * 2, hs * 2) for p in pts]
 
     def _draw_resize_handles(self, painter: QPainter) -> None:
-        pix = self._selected_pixmap()
-        if pix is None:
+        target = self._resizable_selected()
+        if target is None:
             return
-        handles = self._handle_rects(pix)
         pen = QPen(QColor("#2464E5"))
         pen.setCosmetic(True)
         pen.setWidthF(1.5)
         painter.setPen(pen)
         painter.setBrush(QBrush(QColor(255, 255, 255, 200)))
-        for hr in handles:
+        for hr in self._handle_rects(target):
             painter.drawRect(hr)
 
     def _hit_handle(self, scene_pos: QPointF):
         """Return (item, handle_index) if scene_pos hits a resize handle, else (None, None)."""
-        pix = self._selected_pixmap()
-        if pix is None:
+        target = self._resizable_selected()
+        if target is None:
             return None, None
-        for i, hr in enumerate(self._handle_rects(pix)):
+        for i, hr in enumerate(self._handle_rects(target)):
             if hr.contains(scene_pos):
-                return pix, i
+                return target, i
         return None, None
 
     def _start_resize(self, item, handle_idx, scene_pos):
@@ -921,14 +996,23 @@ class CanvasView(QGraphicsView):
         r = r.normalized()
         if r.width() < 2 or r.height() < 2:
             return
-        # Apply: reposition + rescale the pixmap
         item = self._resize_item
-        pm = item.pixmap()
-        item.setPos(r.topLeft())
-        sx = r.width() / pm.width()
-        sy = r.height() / pm.height()
+        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem
         from PySide6.QtGui import QTransform
-        item.setTransform(QTransform.fromScale(sx, sy))
+        if isinstance(item, QGraphicsPixmapItem):
+            pm = item.pixmap()
+            item.setPos(r.topLeft())
+            item.setTransform(QTransform.fromScale(r.width() / pm.width(),
+                                                   r.height() / pm.height()))
+        elif isinstance(item, QGraphicsRectItem):
+            # zip box: resize the boundary, reflow the body text width. Placed
+            # children keep their local positions, so text isn't disturbed.
+            item.setPos(r.topLeft())
+            item.setRect(0, 0, r.width(), r.height())
+            pad = self.grid_spacing * 0.35
+            for ch in item.childItems():
+                if ch.data(1) == "zip_box_text":
+                    ch.setTextWidth(max(10.0, r.width() - 2 * pad))
         self.viewport().update()
 
     def _end_resize(self):
@@ -953,6 +1037,147 @@ class CanvasView(QGraphicsView):
         "🐂": "tuscan", "⛽": "doric", "🦋": "ionic",
         "🏟": "corinthian", "🌾": "composite",
     }
+
+    def _drop_zip_box(self, facets: tuple, scene_pos: QPointF) -> None:
+        """Spawn a zip box (a district seed) on the Book layer at scene_pos:
+        a bounded rect carrying the emoji zip + empty ± tail, with an editable
+        free-text body you can type into immediately."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        from .tools import _load_vg5000
+        if self.document is None or len(self.document.layers) < 3:
+            return
+        book = self.document.layers[2]
+        gs = self.grid_spacing
+        w, h = 12 * gs, 7 * gs
+        pad = gs * 0.35
+        zipstr = "".join(g if g else "_" for g in facets)
+
+        rect = QGraphicsRectItem(QRectF(0, 0, w, h))
+        rect.setPos(scene_pos)
+        pen = QPen(QColor("#2464E5")); pen.setCosmetic(True); pen.setWidthF(1.5)
+        rect.setPen(pen)
+        rect.setBrush(QBrush(QColor(255, 255, 255, 40)))
+        rect.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        rect.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        rect.setData(0, {"facets": list(facets), "tail_text": "", "note": ""})
+        rect.setData(1, "zip_box")
+
+        # Add the rect to the book layer FIRST so it is in the scene, THEN parent
+        # the labels with an explicit setParentItem (QGraphicsTextItem(rect) is
+        # ambiguous — the first positional arg can be text, leaving it parentless).
+        if self.undo_stack is not None:
+            self.undo_stack.push(AddItemCommand(book, rect))
+        else:
+            book.add_item(rect)
+
+        # Revelator line: LOCKED zip + editable "± tail | free-text".
+        zip_label = QGraphicsTextItem()
+        zip_label.setParentItem(rect)
+        zip_label.setFont(_load_vg5000(12))
+        zip_label.setDefaultTextColor(QColor("#2464E5"))
+        zip_label.setPlainText(f"{zipstr} ±")
+        zip_label.setPos(pad, pad)
+        zip_label.setData(1, "zip_box_zip")          # locked — no text interaction
+
+        tail = QGraphicsTextItem()
+        tail.setParentItem(rect)
+        tail.setFont(_load_vg5000(12))
+        tail.setDefaultTextColor(QColor("#2464E5"))
+        tail.setPlainText(" | ")                      # bar present by default
+        tail.setPos(pad + zip_label.boundingRect().width(), pad)
+        tail.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+        tail.setData(1, "zip_box_tail")               # tail before |, free-text after
+
+        body = QGraphicsTextItem()
+        body.setParentItem(rect)
+        body.setFont(_load_vg5000(12))
+        body.setDefaultTextColor(QColor("#3C3C3C"))
+        body.setTextWidth(w - 2 * pad)
+        body.setPos(pad, pad + 22)
+        body.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+        body.setData(1, "zip_box_text")               # inner content — never touches the zip
+        body.setFocus()  # instant typing
+
+    def _zip_box_at(self, scene_pos: QPointF):
+        """The zip-box rect under scene_pos (matching the item or its parent)."""
+        for it in self.scene().items(scene_pos):
+            if it.data(1) == "zip_box":
+                return it
+            p = it.parentItem()
+            if p is not None and p.data(1) == "zip_box":
+                return p
+        return None
+
+    def _leg_handback(self, scene_pos: QPointF) -> None:
+        """🍗 dropped on a district → flag it as handed back to the Archideck.
+        Still lives on the .parti and stays findable; this marks it as a working
+        copy passed to the round table for wiring / upkeep / tasks."""
+        box = self._zip_box_at(scene_pos)
+        if box is None:
+            return
+        data = box.data(0) or {}
+        data["handback"] = True
+        box.setData(0, data)
+        pen = QPen(QColor("#C8772E")); pen.setCosmetic(True); pen.setWidthF(2.0)
+        box.setPen(pen)  # copper border = legged to the Archideck
+        if not any(ch.data(1) == "zip_box_handback" for ch in box.childItems()):
+            from PySide6.QtWidgets import QGraphicsTextItem
+            from .tools import _load_vg5000
+            badge = QGraphicsTextItem()
+            badge.setParentItem(box)
+            badge.setFont(_load_vg5000(12))
+            badge.setPlainText("🍗")
+            badge.setPos(box.rect().width() - 22, 2)
+            badge.setData(1, "zip_box_handback")
+        facets = data.get("facets") or []
+        zipstr = "".join(g if g else "_" for g in facets) if facets else "____"
+        title = ""
+        for ch in box.childItems():
+            if ch.data(1) == "zip_box_text":
+                title = (ch.toPlainText() or "").strip().replace("\n", " ")[:40]
+        self.handback_requested.emit(zipstr + (f'  "{title}"' if title else ""))
+
+    def _focus_zipbox_text(self, scene_pos: QPointF) -> bool:
+        """Select + click on a district's tail/free-text field → edit it (the zip
+        emojis stay locked). Top-row glyph buttons then insert into the focus."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        for it in self.scene().items(scene_pos):
+            if (isinstance(it, QGraphicsTextItem)
+                    and it.data(1) in ("zip_box_tail", "zip_box_text")):
+                it.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+                it.setFocus()
+                return True
+        return False
+
+    _ARROW_DIRS = {"up": (0.0, -1.0), "down": (0.0, 1.0),
+                   "left": (-1.0, 0.0), "right": (1.0, 0.0)}
+
+    def _drop_arrow(self, direction: str, scene_pos: QPointF) -> None:
+        """Drop a flow/direction arrow (a pointer mark) at scene_pos. Seeds the
+        later junction/navigation layer — marked data(1)='arrow' for future wiring."""
+        from PySide6.QtGui import QPainterPath
+        dx, dy = self._ARROW_DIRS.get(direction, (1.0, 0.0))
+        gs = self.grid_spacing
+        shaft = 3.0 * gs
+        head = 0.6 * gs
+        base = QPointF(scene_pos)
+        tip = QPointF(base.x() + dx * shaft, base.y() + dy * shaft)
+        ang = math.atan2(dy, dx)
+        path = QPainterPath(base)
+        path.lineTo(tip)
+        for off in (math.radians(150), math.radians(-150)):
+            path.moveTo(tip)
+            path.lineTo(QPointF(tip.x() + head * math.cos(ang + off),
+                                tip.y() + head * math.sin(ang + off)))
+        item = QGraphicsPathItem(path)
+        pen = QPen(QColor("#3C3C3C")); pen.setCosmetic(True); pen.setWidthF(2.0)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"direction": direction, "note": ""})
+        item.setData(1, "arrow")
+        self.add_item(item)  # active vector layer, undoable
 
     def _handle_glyph_drop(self, glyph: str, scene_pos: QPointF) -> bool:
         """Handle a glyph dragged from the palette onto the canvas.
@@ -1050,7 +1275,8 @@ class CanvasView(QGraphicsView):
 
     def _item_dimensions(self, item):
         """Return [(midpoint, length_grid, label_prefix)] for each editable dimension."""
-        if item.data(1) in ("cell_fill", "cell_text", "word_text", "div_point"):
+        if item.data(1) in ("cell_fill", "cell_text", "word_text", "div_point",
+                            "arrow", "zip_box"):
             return []
         gs = self.grid_spacing
         dims = []

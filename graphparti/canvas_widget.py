@@ -247,7 +247,7 @@ class CanvasWidget(QWidget):
         status_lay.addWidget(self._scale_label)
 
         self._layer_mode = "trace"
-        self._layer_modes = ["parti", "both", "trace"]
+        self._layer_modes = ["parti", "both", "trace", "book"]
         self._layer_buttons: list[LayerButton] = []
         for mode in self._layer_modes:
             btn = LayerButton()
@@ -296,6 +296,36 @@ class CanvasWidget(QWidget):
         orders_act.setShortcut(QKeySequence("Ctrl+5"))
         orders_act.triggered.connect(self._draw_five_orders)
         self.addAction(orders_act)
+
+        # Save the current drawing into the District file system at its zip
+        self._district = None  # lazy DistrictBridge
+        district_act = QAction("Save to District", self)
+        district_act.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        district_act.triggered.connect(self._save_to_district)
+        self.addAction(district_act)
+
+    def set_facets(self, operator=None, axis=None, order=None, color=None) -> None:
+        """Host-callable: push the cockpit dial's zip onto the canvas."""
+        self.view.set_current_facets(operator, axis, order, color)
+
+    def _save_to_district(self) -> None:
+        import os
+        from PySide6.QtWidgets import QInputDialog
+        from .district_bridge import DistrictBridge
+        facets = self.view.current_facets
+        if all(f is None for f in facets):
+            self._status.setText("Set a zip on the cockpit dial first "
+                                 "(no facets = no district address)")
+            return
+        title, ok = QInputDialog.getText(self, "Save to District",
+                                         "Title for this room:")
+        if not ok or not title.strip():
+            return
+        if self._district is None:
+            root = os.path.join(os.path.dirname(__file__), os.pardir, "district-store")
+            self._district = DistrictBridge(os.path.abspath(root))
+        node = self._district.save_canvas(self.document, facets, title.strip())
+        self._status.setText(f"Filed at {node.point_string()} → {node.file}")
 
     # ─────────────────────────────────────────────────── toolbar
     def _build_toolbar(self) -> QToolBar:
@@ -528,9 +558,9 @@ class CanvasWidget(QWidget):
         self.view._layer_mode = mode
         if mode == "parti":
             self.document.active_index = 0
-        elif mode == "trace":
-            self.document.active_index = 1
-        else:  # both — drawing goes to trace
+        elif mode == "book":
+            self.document.active_index = 2   # zip boxes compose on the book layer
+        else:  # trace / both — drawing goes to trace
             self.document.active_index = 1
         self._refresh_layer_buttons()
 

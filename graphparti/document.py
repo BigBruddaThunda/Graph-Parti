@@ -164,14 +164,18 @@ class Document:
 
     @classmethod
     def default(cls, scene: QGraphicsScene, paper: QRectF) -> "Document":
-        """Open with a raster 'parti' (15% opacity) beneath a vector 'trace'; trace active."""
+        """parti (raster ref) · trace (vector, active) · book (vector, zip boxes).
+
+        Layer indices are load-bearing: 0=parti, 1=trace, 2=book."""
         doc = cls(scene)
         doc.add_layer(RasterLayer("parti", scene, paper, opacity=0.50), active=False)
         doc.add_layer(VectorLayer("trace", scene), active=True)
+        doc.add_layer(VectorLayer("book", scene), active=False)
         return doc
 
     # ─────────────────────────────────────────────────── save / load
-    def save_json(self, path: str) -> None:
+    def to_dict(self) -> dict:
+        """Serialize the whole document to a plain dict (the .parti body)."""
         data = {"version": 1, "layers": []}
         for layer in self.layers:
             ld: dict = {"name": layer.name, "kind": layer.kind,
@@ -186,22 +190,22 @@ class Document:
                         "data": _pixmap_to_b64(img.pixmap()),
                     })
             data["layers"].append(ld)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        return data
 
-    def load_json(self, path: str) -> None:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        for layer in self.layers:
-            if isinstance(layer, VectorLayer):
-                for it in list(layer.items()):
-                    layer.remove_item(it)
-            elif isinstance(layer, RasterLayer):
-                for img in list(layer._ref_images):
-                    sc = img.scene()
-                    if sc:
-                        sc.removeItem(img)
-                layer._ref_images.clear()
+    def from_dict(self, data: dict, clear: bool = True) -> None:
+        """Rebuild the document from a dict. When clear is False, items are
+        added on top of what's already present (used for placing a book)."""
+        if clear:
+            for layer in self.layers:
+                if isinstance(layer, VectorLayer):
+                    for it in list(layer.items()):
+                        layer.remove_item(it)
+                elif isinstance(layer, RasterLayer):
+                    for img in list(layer._ref_images):
+                        sc = img.scene()
+                        if sc:
+                            sc.removeItem(img)
+                    layer._ref_images.clear()
         for ld in data.get("layers", []):
             kind = ld.get("kind")
             name = ld.get("name")
@@ -223,6 +227,14 @@ class Document:
                     if pm and not pm.isNull():
                         layer.add_reference_image(
                             pm, QPointF(rd["pos"][0], rd["pos"][1]))
+
+    def save_json(self, path: str) -> None:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    def load_json(self, path: str) -> None:
+        with open(path, "r", encoding="utf-8") as f:
+            self.from_dict(json.load(f))
 
     @staticmethod
     def _serialize_item(item) -> dict:
