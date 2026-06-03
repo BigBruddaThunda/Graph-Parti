@@ -15,6 +15,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -206,6 +207,7 @@ class ArchideckPanel(QWidget):
     # the canvas so drawings file at the dialed district.
     zip_changed = Signal(str, str, str, str)
     terminal_submitted = Signal(str)
+    backend_changed = Signal(str, str)  # backend, model
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -305,6 +307,28 @@ class ArchideckPanel(QWidget):
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         sep.setFixedHeight(1)
         left.addWidget(sep)
+
+        # model selector row
+        model_row = QHBoxLayout()
+        model_row.setSpacing(4)
+        self._backend_combo = QComboBox()
+        self._backend_combo.addItems(["ollama", "lmstudio", "anthropic"])
+        self._backend_combo.setFixedHeight(22)
+        self._backend_combo.setToolTip("AI backend")
+        model_row.addWidget(self._backend_combo)
+        self._model_combo = QComboBox()
+        self._model_combo.setFixedHeight(22)
+        self._model_combo.setEditable(True)
+        self._model_combo.setToolTip("model")
+        model_row.addWidget(self._model_combo, 1)
+        refresh_btn = QToolButton()
+        refresh_btn.setText("↻")
+        refresh_btn.setAutoRaise(True)
+        refresh_btn.setFixedSize(22, 22)
+        refresh_btn.setToolTip("refresh model list")
+        refresh_btn.clicked.connect(self._refresh_models)
+        model_row.addWidget(refresh_btn)
+        left.addLayout(model_row)
 
         # input row — single line + the 5th modifier button
         input_row = QHBoxLayout()
@@ -515,6 +539,29 @@ class ArchideckPanel(QWidget):
     def append_terminal(self, text: str, prefix: str = "") -> None:
         line = f"{prefix} {text}" if prefix else text
         self._terminal_output.appendPlainText(line)
+
+    # ============================================================
+    # MODEL SELECTOR — backend + model combos
+    # ============================================================
+    def _refresh_models(self) -> None:
+        from .conductor import discover_models
+        backend = self._backend_combo.currentText()
+        models = discover_models(backend)
+        self._model_combo.clear()
+        if models:
+            self._model_combo.addItems(models)
+        else:
+            self._model_combo.addItem(f"(no models — is {backend} running?)")
+
+    def current_backend(self) -> str:
+        return self._backend_combo.currentText()
+
+    def current_model(self) -> str:
+        return self._model_combo.currentText()
+
+    def set_models(self, models: list[str]) -> None:
+        self._model_combo.clear()
+        self._model_combo.addItems(models)
 
     # ============================================================
     # COLOR SHELL TINT — color dial → whole panel background

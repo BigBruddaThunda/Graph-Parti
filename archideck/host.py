@@ -62,21 +62,33 @@ class HostWindow(QMainWindow):
         splitter.setSizes([1600 - _COCKPIT_W, _COCKPIT_W])
         self._splitter = splitter
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        self._conductor = Conductor(api_key)
+        self._conductor = Conductor(backend="ollama")
         self._thread_pool = QThreadPool.globalInstance()
         self._active_worker = None
         self.cockpit.terminal_submitted.connect(self._on_terminal_input)
         self.cockpit.zip_changed.connect(self._on_zip_for_conductor)
         self.canvas.view.handback_with_bounds.connect(self._on_handback_for_conductor)
+        self.cockpit._backend_combo.currentTextChanged.connect(self._on_backend_changed)
+        self.cockpit._model_combo.currentTextChanged.connect(self._on_model_changed)
+        self.cockpit._refresh_models()
 
     # ── Conductor wiring ──────────────────────────────────────────────
+
+    def _on_backend_changed(self, backend: str) -> None:
+        model = self.cockpit.current_model()
+        self._conductor.switch_backend(backend, model)
+        self.cockpit._refresh_models()
+        self.cockpit.append_terminal(f"switched to {backend}", prefix="~")
+
+    def _on_model_changed(self, model: str) -> None:
+        self._conductor.model = model
 
     def _on_terminal_input(self, text: str) -> None:
         self.cockpit.append_terminal(text, prefix=">")
         if self._active_worker is not None:
             self.cockpit.append_terminal("(waiting for previous response...)")
             return
+        self._conductor.model = self.cockpit.current_model()
         self._conductor.set_context(
             zip_tuple=self.cockpit.current_zip(),
             handbacks=list(getattr(self.cockpit, "_handbacks", [])),
