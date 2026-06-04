@@ -219,6 +219,41 @@ class HostWindow(QMainWindow):
 
     def _on_handback_for_conductor(self, summary: str, bounds) -> None:
         self._conductor.add_handback(summary, bounds)
+        # Auto-notify: send the handback as a message so the model knows
+        # the architect just flagged a region for it to work in.
+        if self._active_worker is None and getattr(self, "_shell_proc", None) is None:
+            b = bounds or {}
+            note = (
+                f"[handback received: {summary}"
+            )
+            if b:
+                note += (
+                    f" — bounds ({b.get('x',0):.0f},{b.get('y',0):.0f})"
+                    f"→({b.get('x',0)+b.get('w',0):.0f},{b.get('y',0)+b.get('h',0):.0f})"
+                    f" [{b.get('w',0):.0f}×{b.get('h',0):.0f} cells]"
+                )
+            note += ". awaiting your command.]"
+            self._send_to_conductor(note)
+
+    def _send_to_conductor(self, text: str) -> None:
+        """Send a message to the Conductor programmatically (e.g. auto-handback)."""
+        if self._active_worker is not None:
+            return
+        self._conductor.model = self.cockpit.current_model()
+        self._conductor.set_context(
+            zip_tuple=self.cockpit.current_zip(),
+            handbacks=list(getattr(self.cockpit, "_handbacks", [])),
+        )
+        worker = ConductorWorker(self._conductor, text)
+        self._active_worker = worker
+        self._pending_tool_calls = []
+        worker.signals.response_chunk.connect(self._on_response_chunk)
+        worker.signals.response_done.connect(self._on_response_done)
+        worker.signals.tool_call.connect(self._on_tool_call)
+        worker.signals.tool_calls_done.connect(self._on_tool_calls_done)
+        worker.signals.error.connect(self._on_conductor_error)
+        self._streaming_started = False
+        self._thread_pool.start(worker)
 
     def _on_tool_call(self, name: str, args, tool_use_id: str) -> None:
         self._pending_tool_calls.append((name, args, tool_use_id))
