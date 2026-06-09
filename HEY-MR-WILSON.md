@@ -5,7 +5,7 @@
 > full cross-repo teleport lives in the home-base repo (`BigBruddaThunda/archideck`).
 
 **Architect:** Jake (Jacob Wilson Berry) · git `FounderCreator <jwberry234@gmail.com>` ·
-GitHub `BigBruddaThunda` · last updated **2026-06-03** (district + place tenure)
+GitHub `BigBruddaThunda` · last updated **2026-06-09** (Conductor terminal wiring + shell mode)
 
 ## What this is
 GRAPH PARTI = a precision hand-drafting desktop app (PySide6 / Qt6). One program, two halves
@@ -54,15 +54,35 @@ Node record · three reads **POINT / PATH / SET** · `graphparti↔district` bri
 editable `±` tail + `|` free-text) · drag z-pad → flow arrows · drag center 🍗 → leg/handback
 (logs to the cockpit terminal) · partial-zip dials · snap-tied resize.
 
-## Built (2026-06-03 · Conductor terminal wiring)
-**Conductor (duco) wired to terminal:** Claude Haiku (claude-haiku-4-5-20251001) via Anthropic
-SDK. Two-tempo interface: free chat in the terminal (multi-turn) + 🍗 handback to define a
-working region, then command drawing within those bounds. Tools: draw_line, draw_rect,
-draw_circle, draw_polyline (fill_region stubbed). Undo-integrated (Ctrl-Z undoes Conductor
-draws as one macro). Context injection: active zip + handback log + bounding rect. New file:
-`archideck/conductor.py`. API key via `ANTHROPIC_API_KEY` env var.
+## Built (2026-06-09 · Conductor terminal wiring + shell mode)
+**Conductor (duco) — multi-backend, WORKING.** First successful test: LM Studio LFM2.5-1.2B
+drew circles, rects, polylines on the canvas from chat commands. Multi-backend bridge in
+`archideck/conductor.py`: Ollama (localhost:11434) · LM Studio (localhost:1234) · Anthropic API.
+OpenAI-compatible API for local models, Anthropic SDK for cloud. Model selector dropdown +
+refresh button in the terminal area (`panel.py`). Tools: draw_line, draw_rect, draw_circle,
+draw_polyline (fill_region stubbed). Undo-integrated (Ctrl-Z undoes Conductor draws as one
+macro). Context injection: active zip + handback log + bounding rect. 🍗 handback auto-notifies
+the Conductor (no follow-up message needed).
+
+**Shell mode in the terminal — BUILT.** The terminal is a real terminal. Known CLI commands
+(`claude`, `codex`, `gsk`, `ollama`, `lms`, `git`, `python`, `node`, `npm`, `pip`) run as
+subprocesses with stdout streamed to the terminal output. `!` prefix runs any shell command.
+Smart translation: `claude prompt` → `claude -p "prompt"` (non-interactive), `codex prompt` →
+`codex exec "prompt"`. Subsequent input pipes to the running process's stdin.
+
+**CLI tools installed:** `gsk` (Genspark CLI, logged in, 130+ action tools) · `codex` (OpenAI
+Codex CLI) · `claude` (Claude Code) · `ollama` (qwen2.5:1.5b pulled) · `lms` (LM Studio
+headless, 3 models: LFM2.5-1.2B, Nemotron-3-Nano-4B, Qwen3.5-9B).
+
+**Dependencies added:** `anthropic` + `openai` Python packages in `.venv`.
 
 ## Next
+- **Codex as a proper Conductor backend** — wire `codex exec --json` with structured output
+  parsing so Codex can use its full tool system (file edits, MCP, web search) for canvas work.
+- **Genspark tools as Conductor tools** — web search, image gen, audio gen callable from chat.
+- **Model quality for tool use** — small local models (1.5B) can't call tools reliably; need
+  Qwen3.5-9B (LM Studio) or cloud models for real tool use. Local models are runners for chat.
+- **Codex crashing the app** — needs investigation (may need `CREATE_NO_WINDOW` flag adjustment).
 - **District floor remaining:** Tier 0/1 sorter (no-AI, next build) · cockpit shelf · district
   containment · auto-save-back · semantic index.
 - **Place Layer floor (designed, see save-docs):** map base webview · place node record ·
@@ -94,5 +114,9 @@ build (x86 Linux + Android NDK + `pyside6-android-deploy`) — not buildable fro
 - This repo (`Graph-Parti`) is **public**; the archideck home base is private. Flip to private
   if the tool should stay closed.
 - A stray `codex/decide-and-update-district-zip-schema` branch from another agent is left in place.
+- `.parti` test files (`ALPHA.parti`, `alpha1.parti`) in repo root from smoke testing — not committed.
+- **LM Studio headless:** start with `lms server start` (serves at :1234, JIT model loading).
+- **Ollama:** `ollama serve` (auto-starts on install), models at `ollama list`.
+- **Genspark CLI:** logged in, config at `~/.genspark-tool-cli/config.json`.
 
 🐋 🧮
