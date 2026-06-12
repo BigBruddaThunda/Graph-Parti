@@ -10,7 +10,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QUndoStack
 from PySide6.QtWidgets import (
     QColorDialog, QGraphicsScene, QGridLayout, QHBoxLayout, QLabel,
-    QMenu, QToolBar, QToolButton, QVBoxLayout, QWidget,
+    QLineEdit, QMenu, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
 from .canvas_view import CanvasView
@@ -186,6 +186,52 @@ class EmojiGroupWidget(QWidget):
             grid.addWidget(btn, i // cols, i % cols)
 
 
+class TextComposerBox(QLineEdit):
+    """63rd box: type/paste text or click emoji buttons to compose, then
+    click-drag the composed text onto the canvas as a movable block.
+    250 character limit. Drag emits application/x-scl-textblock mime."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setPlaceholderText("type or click glyphs → drag onto canvas")
+        self.setMaxLength(250)
+        self._drag_start = None
+        self.setStyleSheet(
+            "QLineEdit { font-size:11px; background:#4a4a4a; color:white;"
+            " border:1px solid #555; padding:0 4px; }"
+        )
+
+    def insert_glyph(self, glyph: str) -> None:
+        self.insert(glyph)
+        self.setFocus()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (self._drag_start is not None
+                and self.text().strip()
+                and (event.position().toPoint() - self._drag_start).manhattanLength() > 12):
+            from PySide6.QtGui import QDrag
+            from PySide6.QtCore import QMimeData
+            drag = QDrag(self)
+            mime = QMimeData()
+            text = self.text().strip()[:250]
+            mime.setData("application/x-scl-textblock", text.encode("utf-8"))
+            mime.setText(text)
+            drag.setMimeData(mime)
+            drag.exec(Qt.DropAction.CopyAction)
+            self._drag_start = None
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_start = None
+        super().mouseReleaseEvent(event)
+
+
 class LayerButton(QToolButton):
     right_clicked = Signal()
 
@@ -263,27 +309,38 @@ class CanvasWidget(QWidget):
 
         layout.addWidget(status_bar)
 
-        # ── SCL bottom band (61 glyphs, single row) ──
+        # ── SCL bottom band (61 glyphs + ± + text composer) ──
         scl_band = QWidget()
         scl_band.setFixedHeight(28)
         scl_band.setStyleSheet("background: #3C3C3C;")
         scl_lay = QHBoxLayout(scl_band)
         scl_lay.setContentsMargins(2, 2, 2, 2)
         scl_lay.setSpacing(1)
+        _btn_ss = (
+            "QToolButton { font-size:12px; padding:0; border:1px solid #555;"
+            " background:#4a4a4a; color:white; }"
+            "QToolButton:hover { background:#666; }"
+        )
         all_glyphs = []
         for _label, glyphs in _SCL_GROUPS:
             all_glyphs.extend(glyphs)
         for glyph in all_glyphs:
             btn = DraggableEmojiButton(glyph)
             btn.setFixedSize(20, 20)
-            btn.setStyleSheet(
-                "QToolButton { font-size:12px; padding:0; border:1px solid #555;"
-                " background:#4a4a4a; color:white; }"
-                "QToolButton:hover { background:#666; }"
-            )
-            btn.emoji_clicked.connect(self._on_emoji_clicked)
+            btn.setStyleSheet(_btn_ss)
+            btn.emoji_clicked.connect(self._on_emoji_band_click)
             scl_lay.addWidget(btn)
-        scl_lay.addStretch(1)
+        # 62nd: ± symbol
+        pm_btn = DraggableEmojiButton("±")
+        pm_btn.setFixedSize(20, 20)
+        pm_btn.setStyleSheet(_btn_ss)
+        pm_btn.emoji_clicked.connect(self._on_emoji_band_click)
+        scl_lay.addWidget(pm_btn)
+        # 63rd: text composer — type/paste text, click emojis into it, drag out
+        self._text_composer = TextComposerBox()
+        self._text_composer.setFixedHeight(22)
+        self._text_composer.setMinimumWidth(120)
+        scl_lay.addWidget(self._text_composer, 1)
         layout.addWidget(scl_band)
 
         # ── Signals + init ──
@@ -492,6 +549,10 @@ class CanvasWidget(QWidget):
             cursor = focus.textCursor()
             cursor.insertText(glyph)
             focus.setTextCursor(cursor)
+
+    def _on_emoji_band_click(self, glyph: str) -> None:
+        """Bottom-band emoji click → insert into text composer (63rd box)."""
+        self._text_composer.insert_glyph(glyph)
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)

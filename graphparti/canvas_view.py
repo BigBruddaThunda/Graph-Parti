@@ -798,7 +798,8 @@ class CanvasView(QGraphicsView):
 
     # ----------------------------------------- drag-and-drop (reference images)
     _DRAG_FORMATS = ("application/x-scl-glyph", "application/x-scl-zip",
-                     "application/x-scl-arrow", "application/x-scl-handback")
+                     "application/x-scl-arrow", "application/x-scl-handback",
+                     "application/x-scl-textblock")
 
     def dragEnterEvent(self, event) -> None:
         md = event.mimeData()
@@ -848,6 +849,15 @@ class CanvasView(QGraphicsView):
                 scene_pos = QPointF(round(scene_pos.x() / gs) * gs,
                                     round(scene_pos.y() / gs) * gs)
             self._drop_zip_box(facets, scene_pos)
+            event.acceptProposedAction()
+            self.viewport().update()
+            return
+
+        # ── Text block drop (drag from composer box → place text) ──
+        if md.hasFormat("application/x-scl-textblock"):
+            text = bytes(md.data("application/x-scl-textblock")).decode("utf-8")
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self._place_text_block(text, scene_pos)
             event.acceptProposedAction()
             self.viewport().update()
             return
@@ -1209,20 +1219,60 @@ class CanvasView(QGraphicsView):
         return True
 
     def _place_glyph_icon(self, glyph: str, scene_pos: QPointF) -> None:
-        """Place a 0.5D movable emoji icon block on the canvas."""
+        """Place a 0.5D movable emoji icon block on the book layer.
+        Snaps to nodes (endpoints/midpoints) only — never grid lines.
+        Centers the glyph on the snap/drop point."""
         from PySide6.QtWidgets import QGraphicsTextItem
         from .tools import _load_vg5000
+        osnap = self._nearest_osnap(scene_pos)
+        if osnap is not None:
+            scene_pos = osnap[0]
         gs = self.grid_spacing
         half_d = gs * 0.5
         item = QGraphicsTextItem()
         font = _load_vg5000(int(half_d * 0.8))
         item.setFont(font)
         item.setPlainText(glyph)
-        item.setPos(scene_pos.x() - half_d * 0.3, scene_pos.y() - half_d * 0.3)
+        br = item.boundingRect()
+        item.setPos(scene_pos.x() - br.width() / 2,
+                    scene_pos.y() - br.height() / 2)
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         item.setData(1, "scl_icon")
-        self.add_item(item)
+        self._add_to_book_layer(item)
+
+    def _place_text_block(self, text: str, scene_pos: QPointF) -> None:
+        """Place a movable text block on the book layer. Centered on drop point.
+        Snaps to nodes only. For the 63rd-box drag-out."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        from .tools import _load_vg5000
+        osnap = self._nearest_osnap(scene_pos)
+        if osnap is not None:
+            scene_pos = osnap[0]
+        gs = self.grid_spacing
+        item = QGraphicsTextItem()
+        font = _load_vg5000(int(gs * 0.4))
+        item.setFont(font)
+        item.setPlainText(text[:250])
+        br = item.boundingRect()
+        item.setPos(scene_pos.x() - br.width() / 2,
+                    scene_pos.y() - br.height() / 2)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        item.setData(1, "text_block")
+        self._add_to_book_layer(item)
+
+    def _add_to_book_layer(self, item) -> None:
+        """Add an item to the book layer (index 2) with undo support."""
+        if self.document is None or len(self.document.layers) < 3:
+            self.add_item(item)
+            return
+        book = self.document.layers[2]
+        from .commands import AddItemCommand
+        if self.undo_stack is not None:
+            self.undo_stack.push(AddItemCommand(book, item))
+        else:
+            book.add_item(item)
 
     def _toggle_division_marks(self) -> None:
         """N key: show/hide all red division tick marks."""
