@@ -852,11 +852,13 @@ class CanvasView(QGraphicsView):
             self.viewport().update()
             return
 
-        # ── SCL glyph drop (drag from emoji palette → place book) ──
+        # ── SCL glyph drop (drag from emoji palette → place icon/order) ──
         if md.hasFormat("application/x-scl-glyph"):
             glyph = bytes(md.data("application/x-scl-glyph")).decode("utf-8")
             scene_pos = self.mapToScene(event.position().toPoint())
-            if self.snap_enabled:
+            # Icons always free-place (no snap). Orders still snap.
+            is_order = glyph in self._ORDER_GLYPH_MAP
+            if is_order and self.snap_enabled:
                 gs = self.grid_spacing
                 scene_pos = QPointF(
                     round(scene_pos.x() / gs) * gs,
