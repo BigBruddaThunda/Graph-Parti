@@ -1203,7 +1203,24 @@ class CanvasView(QGraphicsView):
             if self.undo_stack:
                 self.undo_stack.endMacro()
             return True
-        return False
+        self._place_glyph_icon(glyph, scene_pos)
+        return True
+
+    def _place_glyph_icon(self, glyph: str, scene_pos: QPointF) -> None:
+        """Place a 0.5D movable emoji icon block on the canvas."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        from .tools import _load_vg5000
+        gs = self.grid_spacing
+        half_d = gs * 0.5
+        item = QGraphicsTextItem()
+        font = _load_vg5000(int(half_d * 0.8))
+        item.setFont(font)
+        item.setPlainText(glyph)
+        item.setPos(scene_pos.x() - half_d * 0.3, scene_pos.y() - half_d * 0.3)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        item.setData(1, "scl_icon")
+        self.add_item(item)
 
     def _toggle_division_marks(self) -> None:
         """N key: show/hide all red division tick marks."""

@@ -263,6 +263,29 @@ class CanvasWidget(QWidget):
 
         layout.addWidget(status_bar)
 
+        # ── SCL bottom band (61 glyphs, single row) ──
+        scl_band = QWidget()
+        scl_band.setFixedHeight(28)
+        scl_band.setStyleSheet("background: #3C3C3C;")
+        scl_lay = QHBoxLayout(scl_band)
+        scl_lay.setContentsMargins(2, 2, 2, 2)
+        scl_lay.setSpacing(1)
+        all_glyphs = []
+        for _label, glyphs in _SCL_GROUPS:
+            all_glyphs.extend(glyphs)
+        for glyph in all_glyphs:
+            btn = DraggableEmojiButton(glyph)
+            btn.setFixedSize(20, 20)
+            btn.setStyleSheet(
+                "QToolButton { font-size:12px; padding:0; border:1px solid #555;"
+                " background:#4a4a4a; color:white; }"
+                "QToolButton:hover { background:#666; }"
+            )
+            btn.emoji_clicked.connect(self._on_emoji_clicked)
+            scl_lay.addWidget(btn)
+        scl_lay.addStretch(1)
+        layout.addWidget(scl_band)
+
         # ── Signals + init ──
         self._last_coord = "X 0  Y 0"
         self._last_kind = "SNAP"
@@ -433,16 +456,6 @@ class CanvasWidget(QWidget):
         self._line_palette = ColorPalette(colors=_LINE_PALETTE)
         tb.addWidget(self._line_palette)
         self._line_palette.color_selected.connect(self._on_line_color_selected)
-
-        # ── 61 SCL emoji palette (2-row grids per group) ──
-        tb.addSeparator()
-        scl_arrow = QAction("SCL →", self)
-        scl_arrow.setEnabled(False)
-        tb.addAction(scl_arrow)
-        for _label, glyphs in _SCL_GROUPS:
-            grp = EmojiGroupWidget(glyphs)
-            grp.emoji_clicked.connect(self._on_emoji_clicked)
-            tb.addWidget(grp)
 
         return tb
 
