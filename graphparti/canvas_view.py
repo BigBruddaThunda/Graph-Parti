@@ -178,9 +178,12 @@ class CanvasView(QGraphicsView):
     def set_tool(self, tool) -> None:
         if self.active_tool is not None:
             self.active_tool.deactivate()
+        self._defocus_active_text()
         self.active_tool = tool
         if tool is not None:
             tool.activate()
+            if tool.name not in ("select", "rotate", "mirror"):
+                self.scene().clearSelection()
         self.viewport().update()
 
     def current_stroke(self) -> str:
@@ -331,6 +334,15 @@ class CanvasView(QGraphicsView):
 
         sorted_t = sorted(crossings)
 
+        # ── Merge t-values that are very close (prevents micro-fragments) ──
+        merged = [sorted_t[0]]
+        for t in sorted_t[1:]:
+            if t - merged[-1] > 0.005:
+                merged.append(t)
+            else:
+                merged[-1] = max(merged[-1], t)
+        sorted_t = merged
+
         # ── Find clicked sub-segment ──
         t_click = ((click.x() - p1.x()) * dx + (click.y() - p1.y()) * dy) / length_sq
         t_click = max(0.0, min(1.0, t_click))
@@ -342,8 +354,16 @@ class CanvasView(QGraphicsView):
                 trim_right = sorted_t[i + 1]
                 break
 
+        # If no real crossings besides endpoints, delete the whole line
+        if trim_left < 0.005 and trim_right > 0.995 and len(others) == 0:
+            self.undo_stack.beginMacro("Trim")
+            self.undo_stack.push(DeleteItemsCommand(self.document, [item]))
+            self.undo_stack.endMacro()
+            return
+
         # ── Atomic: delete original, keep exploded edges + remnants ──
         pen = item.pen()
+        brush = item.brush() if hasattr(item, 'brush') else None
         meta = item.data(0) or {"zip": "", "note": ""}
         layer = self.document.layer_for(item)
         if layer is None:
@@ -352,33 +372,58 @@ class CanvasView(QGraphicsView):
         self.undo_stack.beginMacro("Trim")
         self.undo_stack.push(DeleteItemsCommand(self.document, [item]))
 
-        # Keep other edges as individual lines (explode)
-        for s in others:
-            if s.length() > 1e-6:
-                li = QGraphicsLineItem(s)
+        if others:
+            tol = 2.0
+            groups: list[list[QLineF]] = []
+            cur_group = [others[0]]
+            for s in others[1:]:
+                if s.length() < 1e-6:
+                    continue
+                if QLineF(cur_group[-1].p2(), s.p1()).length() < tol:
+                    cur_group.append(s)
+                else:
+                    groups.append(cur_group)
+                    cur_group = [s]
+            groups.append(cur_group)
+            if (len(groups) > 1
+                    and QLineF(groups[-1][-1].p2(), groups[0][0].p1()).length() < tol):
+                groups[0] = groups.pop() + groups[0]
+            for grp in groups:
+                valid = [s for s in grp if s.length() > 1e-6]
+                if not valid:
+                    continue
+                if len(valid) == 1:
+                    pi = QGraphicsLineItem(valid[0])
+                else:
+                    path = QPainterPath(valid[0].p1())
+                    for s in valid:
+                        path.lineTo(s.p2())
+                    pi = QGraphicsPathItem(path)
+                pi.setPen(pen)
+                pi.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                pi.setData(0, dict(meta))
+                self.undo_stack.push(AddItemCommand(layer, pi))
+
+        min_remnant = 0.01
+        if trim_left > min_remnant:
+            pa = QPointF(p1)
+            pb = QPointF(p1.x() + trim_left * dx, p1.y() + trim_left * dy)
+            if QLineF(pa, pb).length() > 1.0:
+                li = QGraphicsLineItem(QLineF(pa, pb))
                 li.setPen(pen)
                 li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 li.setData(0, dict(meta))
                 self.undo_stack.push(AddItemCommand(layer, li))
 
-        # Remnants of the trimmed edge
-        if trim_left > 1e-9:
-            pa = QPointF(p1)
-            pb = QPointF(p1.x() + trim_left * dx, p1.y() + trim_left * dy)
-            li = QGraphicsLineItem(QLineF(pa, pb))
-            li.setPen(pen)
-            li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
-            li.setData(0, dict(meta))
-            self.undo_stack.push(AddItemCommand(layer, li))
-
-        if trim_right < 1.0 - 1e-9:
+        if trim_right < 1.0 - min_remnant:
             pa = QPointF(p1.x() + trim_right * dx, p1.y() + trim_right * dy)
             pb = QPointF(p2)
-            li = QGraphicsLineItem(QLineF(pa, pb))
-            li.setPen(pen)
-            li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
-            li.setData(0, dict(meta))
-            self.undo_stack.push(AddItemCommand(layer, li))
+            if QLineF(pa, pb).length() > 1.0:
+                li = QGraphicsLineItem(QLineF(pa, pb))
+                li.setPen(pen)
+                li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                li.setData(0, dict(meta))
+                self.undo_stack.push(AddItemCommand(layer, li))
 
         self.undo_stack.endMacro()
 
@@ -426,6 +471,30 @@ class CanvasView(QGraphicsView):
             for a, b in zip(pts, pts[1:]):
                 segs.append(QLineF(a, b))
         return segs
+
+    def trim_fence(self, p1: QPointF, p2: QPointF) -> None:
+        """Fence trim: cut every item the line p1→p2 crosses."""
+        fence = QLineF(p1, p2)
+        if self.document is None or self.undo_stack is None:
+            return
+        hits: list[QPointF] = []
+        for layer in self.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in list(layer.items()):
+                if item.data(1) in ("cell_fill", "div_point"):
+                    continue
+                for seg in self._line_segments(item):
+                    itype, ipt = fence.intersects(seg)
+                    if itype == QLineF.IntersectionType.BoundedIntersection:
+                        hits.append(QPointF(ipt))
+                        break
+        if not hits:
+            return
+        self.undo_stack.beginMacro("Fence trim")
+        for pt in hits:
+            self.trim_at(pt)
+        self.undo_stack.endMacro()
 
     def _tool_active(self) -> bool:
         return self.active_tool is not None and self.dragMode() == QGraphicsView.DragMode.NoDrag
@@ -552,6 +621,16 @@ class CanvasView(QGraphicsView):
             self.active_tool.paint_preview(painter)
         self._draw_selected_dims(painter)
         self._draw_resize_handles(painter)
+        self._draw_text_borders(painter)
+        if (self._right_dragging and self.active_tool
+                and getattr(self.active_tool, '_rt_dragged', False)):
+            pen = QPen(QColor("#C1140C"))
+            pen.setCosmetic(True)
+            pen.setWidthF(1.5)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(QLineF(self.active_tool._rt_start,
+                                    self.active_tool._rt_cur))
         if self._cursor_scene is None or not self._snap_kind:
             return
         p = self._cursor_scene
@@ -605,6 +684,7 @@ class CanvasView(QGraphicsView):
             event.accept()
             return
         if event.button() == Qt.MouseButton.LeftButton:
+            self._defocus_active_text()
             # Check resize handles first (before tool routing)
             raw_scene = self.mapToScene(event.position().toPoint())
             item, hidx = self._hit_handle(raw_scene)
@@ -711,6 +791,29 @@ class CanvasView(QGraphicsView):
             self._copy_selected()
             event.accept()
             return
+        # Arrow keys → viewport navigation (same grammar as joystick / z-pad)
+        _ARROW_MAP = {
+            Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0),
+            Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1),
+        }
+        if event.key() in _ARROW_MAP and not self._text_item_has_focus():
+            dx, dy = _ARROW_MAP[event.key()]
+            nav = getattr(self, '_navigator', None)
+            if nav is not None:
+                if self._wireframe:
+                    nav.step(dx, dy)
+                else:
+                    nav.scroll_free(dx * 15, dy * 15)
+            else:
+                gs = self.grid_spacing
+                zoom = self.transform().m11()
+                hbar = self.horizontalScrollBar()
+                vbar = self.verticalScrollBar()
+                hbar.setValue(int(hbar.value() + dx * gs * zoom))
+                vbar.setValue(int(vbar.value() + dy * gs * zoom))
+            event.accept()
+            return
+
         # Don't intercept keys when a text item is being edited (let text handle them)
         if self._text_item_has_focus():
             if event.key() == Qt.Key.Key_Escape:
@@ -1274,6 +1377,43 @@ class CanvasView(QGraphicsView):
         else:
             book.add_item(item)
 
+    def _draw_text_borders(self, painter: QPainter) -> None:
+        """Thin dotted border around committed text items — shows claimed space."""
+        if self.document is None:
+            return
+        from PySide6.QtWidgets import QGraphicsTextItem
+        pen = QPen(QColor("#BBBBBB"))
+        pen.setCosmetic(True)
+        pen.setWidthF(0.5)
+        pen.setStyle(Qt.PenStyle.DotLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for layer in self.document.layers:
+            if not layer.visible or layer.kind != "vector":
+                continue
+            for item in layer.items():
+                if not isinstance(item, QGraphicsTextItem):
+                    continue
+                if item.data(1) not in ("word_text", "cell_text", "text_block"):
+                    continue
+                if item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction:
+                    continue
+                poly = item.mapToScene(item.boundingRect())
+                painter.drawPolygon(poly)
+
+    def _defocus_active_text(self) -> None:
+        """Remove text editing focus from any active QGraphicsTextItem."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        focus = self.scene().focusItem()
+        if isinstance(focus, QGraphicsTextItem):
+            focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            focus.clearFocus()
+            if not focus.toPlainText().strip():
+                if self.undo_stack and self.document:
+                    self.undo_stack.push(DeleteItemsCommand(self.document, [focus]))
+            if self.active_tool and hasattr(self.active_tool, '_active_text'):
+                self.active_tool._active_text = None
+
     def _toggle_division_marks(self) -> None:
         """N key: show/hide all red division tick marks."""
         self._div_visible = not self._div_visible
@@ -1505,24 +1645,23 @@ class CanvasView(QGraphicsView):
         """Extract a clonable blueprint from a QGraphicsItem."""
         from PySide6.QtWidgets import QGraphicsPixmapItem
         pen = item.pen() if hasattr(item, 'pen') else None
+        brush = item.brush() if hasattr(item, 'brush') else None
         data = item.data(0)
-        pos = item.pos()
         if isinstance(item, QGraphicsLineItem):
             ln = item.line()
             return ("line", QLineF(item.mapToScene(ln.p1()), item.mapToScene(ln.p2())),
-                    pen, data)
+                    pen, data, brush)
         elif isinstance(item, QGraphicsRectItem):
             r = item.rect()
             tl = item.mapToScene(r.topLeft())
             br = item.mapToScene(r.bottomRight())
-            return ("rect", QRectF(tl, br), pen, data)
+            return ("rect", QRectF(tl, br), pen, data, brush)
         elif isinstance(item, QGraphicsEllipseItem):
             r = item.rect()
             tl = item.mapToScene(r.topLeft())
             br = item.mapToScene(r.bottomRight())
-            return ("ellipse", QRectF(tl, br), pen, data)
+            return ("ellipse", QRectF(tl, br), pen, data, brush)
         elif isinstance(item, QGraphicsPathItem):
-            # Clone the path in scene coords
             path = item.path()
             from PySide6.QtGui import QPainterPath
             sp = QPainterPath()
@@ -1533,7 +1672,7 @@ class CanvasView(QGraphicsView):
                     sp.moveTo(pt)
                 else:
                     sp.lineTo(pt)
-            return ("path", sp, pen, data)
+            return ("path", sp, pen, data, brush)
         elif isinstance(item, QGraphicsPixmapItem):
             return ("pixmap", item.pixmap(), item.pos(), item.transform(),
                     item.opacity(), data)
@@ -1581,6 +1720,8 @@ class CanvasView(QGraphicsView):
             if item is not None:
                 if bp[2]:  # pen
                     item.setPen(bp[2])
+                if len(bp) > 4 and bp[4] and hasattr(item, 'setBrush'):
+                    item.setBrush(bp[4])
                 item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 item.setData(0, dict(bp[3]) if bp[3] else {"zip": "", "note": ""})
                 if self.undo_stack:

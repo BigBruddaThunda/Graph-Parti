@@ -16,8 +16,9 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    CellTextTool, CircleTool, DivideTool, ExtendTool, LineTool, OffsetTool,
-    PaintTool, PolylineTool, RectTool, RotateTool, SelectTool, TrimTool, WordTextTool,
+    ArcTool, CellTextTool, CircleTool, DivideTool, EllipseTool, ExtendTool,
+    LineTool, MirrorTool, OffsetTool, PaintTool, PolylineTool, RectTool,
+    RotateTool, SelectTool, TrimTool, WordTextTool,
 )
 
 _SCENE_HALF = 100_000
@@ -274,6 +275,9 @@ class CanvasWidget(QWidget):
             "extend": ExtendTool(self.view),
             "divide": DivideTool(self.view),
             "rotate": RotateTool(self.view),
+            "mirror": MirrorTool(self.view),
+            "ellipse": EllipseTool(self.view),
+            "arc": ArcTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -357,6 +361,14 @@ class CanvasWidget(QWidget):
         self.view._extend_tool = self._tools["extend"]
         self._file_path = None
 
+        from .joystick import ViewNavigator, JoystickNavigator, joystick_available
+        self._navigator = ViewNavigator(self.view)
+        self.view._navigator = self._navigator
+        self._joystick = JoystickNavigator(self.view, self._navigator)
+        self._joystick.start()
+        if self._joystick.connected:
+            self._status.setText("GRAPH PARTI — joystick detected")
+
         save_act = QAction("Save", self)
         save_act.setShortcut(QKeySequence.StandardKey.Save)
         save_act.triggered.connect(self._save)
@@ -417,9 +429,11 @@ class CanvasWidget(QWidget):
         for key, label, shortcut in [
             ("select", "Select", "V"), ("line", "Line", "L"),
             ("polyline", "Polyline", "P"), ("rect", "Rect", "R"),
-            ("circle", "Circle", "C"), ("trim", "Trim", "T"),
+            ("circle", "Circle", "C"), ("ellipse", "Ellipse", ""),
+            ("arc", "Arc", ""), ("trim", "Trim", "T"),
             ("extend", "Extend", ""), ("divide", "Divide", "D"),
             ("rotate", "Rotate", ""),
+            ("mirror", "Mirror", "M"),
             ("offset", "Offset", "O"), ("paint", "Paint", "B"),
             ("word", "Word", "A"), ("cell", "Cell", "G"),
         ]:

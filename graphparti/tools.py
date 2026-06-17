@@ -162,6 +162,26 @@ class Tool:
     def idle_right_click(self, p: QPointF) -> None:
         self.canvas.trim_at(p)
 
+    def on_right_press(self, p: QPointF) -> None:
+        self._rt_start = QPointF(p)
+        self._rt_cur = QPointF(p)
+        self._rt_dragged = False
+
+    def on_right_move(self, p: QPointF) -> None:
+        if hasattr(self, '_rt_start') and self._rt_start is not None:
+            self._rt_cur = QPointF(p)
+            if QLineF(self._rt_start, p).length() > _gs(self.canvas) * 0.3:
+                self._rt_dragged = True
+
+    def on_right_release(self, p: QPointF) -> None:
+        if getattr(self, '_rt_dragged', False):
+            self.canvas.trim_fence(self._rt_start, QPointF(p))
+        else:
+            self.idle_right_click(QPointF(p))
+        self._rt_start = None
+        self._rt_cur = None
+        self._rt_dragged = False
+
     def set_dimension(self, value: float) -> None:
         pass
 
@@ -357,6 +377,193 @@ class CircleTool(Tool):
                 _draw_dim_label(painter, self._cur, f"r={_dim_text(radius)}")
 
 
+# ═══════════════════════════════════════════════════════════ ellipse
+class EllipseTool(Tool):
+    """2-point axis + drag width. Click two axis endpoints, move cursor
+    perpendicular to set the minor-axis width, click to commit."""
+    name = "ellipse"
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def reset(self) -> None:
+        self._p1 = None
+        self._p2 = None
+        self._cursor = None
+        self._phase = 0
+
+    def cancel(self) -> None:
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            self.cancel()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            self._p1 = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._p2 = self._apply_ortho(self._p1, p)
+            self._phase = 2
+        elif self._phase == 2:
+            self._commit_ellipse(QPointF(p))
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 1 and self._p1:
+            self._cursor = self._apply_ortho(self._p1, p)
+        else:
+            self._cursor = QPointF(p)
+
+    def _perp_dist(self, p: QPointF) -> float:
+        dx = self._p2.x() - self._p1.x()
+        dy = self._p2.y() - self._p1.y()
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            return 0.0
+        return abs((p.x() - self._p1.x()) * (-dy / length) +
+                   (p.y() - self._p1.y()) * (dx / length))
+
+    def _commit_ellipse(self, p3: QPointF) -> None:
+        if self._p1 is None or self._p2 is None:
+            self.reset()
+            return
+        a = QLineF(self._p1, self._p2).length() / 2
+        b = self._perp_dist(p3)
+        if a < MIN_DRAG or b < MIN_DRAG:
+            self.reset()
+            return
+        cx = (self._p1.x() + self._p2.x()) / 2
+        cy = (self._p1.y() + self._p2.y()) / 2
+        angle = math.degrees(math.atan2(
+            self._p2.y() - self._p1.y(), self._p2.x() - self._p1.x()))
+        path = QPainterPath()
+        path.addEllipse(QPointF(0, 0), a, b)
+        item = QGraphicsPathItem(path)
+        tf = QTransform()
+        tf.translate(cx, cy)
+        tf.rotate(angle)
+        item.setTransform(tf)
+        self._commit(item)
+        self.reset()
+        self.canvas.viewport().update()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        painter.setPen(self._preview_pen)
+        if self._phase == 1 and self._p1 and self._cursor:
+            painter.drawLine(QLineF(self._p1, self._cursor))
+            gs = _gs(self.canvas)
+            length = QLineF(self._p1, self._cursor).length() / gs
+            if length > 0.1:
+                _draw_dim_label(painter, self._cursor, _dim_text(length))
+        elif self._phase == 2 and self._p1 and self._p2 and self._cursor:
+            a = QLineF(self._p1, self._p2).length() / 2
+            b = self._perp_dist(self._cursor)
+            if a > 1 and b > 1:
+                cx = (self._p1.x() + self._p2.x()) / 2
+                cy = (self._p1.y() + self._p2.y()) / 2
+                angle = math.degrees(math.atan2(
+                    self._p2.y() - self._p1.y(), self._p2.x() - self._p1.x()))
+                painter.save()
+                painter.translate(cx, cy)
+                painter.rotate(angle)
+                painter.drawEllipse(QPointF(0, 0), a, b)
+                painter.restore()
+                gs = _gs(self.canvas)
+                _draw_dim_label(painter, self._cursor,
+                                f"{_dim_text(2*a/gs)} × {_dim_text(2*b/gs)}")
+
+
+# ═══════════════════════════════════════════════════════════ arc
+class ArcTool(Tool):
+    """3-click arc: start → end → drag through-point to define curvature."""
+    name = "arc"
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def reset(self) -> None:
+        self._p1 = None
+        self._p2 = None
+        self._cursor = None
+        self._phase = 0
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            self._p1 = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._p2 = QPointF(p)
+            self._phase = 2
+        elif self._phase == 2:
+            self._commit_arc(QPointF(p))
+
+    def on_move(self, p: QPointF) -> None:
+        self._cursor = QPointF(p)
+
+    def cancel(self) -> None:
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            self.cancel()
+
+    def _arc_path(self, p1, p2, p3) -> QPainterPath | None:
+        """Compute circular arc from p1 through p3 to p2."""
+        ax, ay = p1.x(), p1.y()
+        bx, by = p2.x(), p2.y()
+        cx, cy = p3.x(), p3.y()
+        d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+        if abs(d) < 1e-9:
+            path = QPainterPath(p1)
+            path.lineTo(p2)
+            return path
+        ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) +
+              (cx * cx + cy * cy) * (ay - by)) / d
+        uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) +
+              (cx * cx + cy * cy) * (bx - ax)) / d
+        r = math.hypot(ax - ux, ay - uy)
+        ang_start = math.degrees(math.atan2(-(ay - uy), ax - ux))
+        ang_end = math.degrees(math.atan2(-(by - uy), bx - ux))
+        ang_mid = math.degrees(math.atan2(-(cy - uy), cx - ux))
+
+        def _norm(a):
+            return a % 360
+
+        ccw_to_mid = _norm(ang_mid - ang_start)
+        ccw_to_end = _norm(ang_end - ang_start)
+        if ccw_to_mid <= ccw_to_end:
+            sweep = ccw_to_end
+        else:
+            sweep = ccw_to_end - 360
+
+        rect = QRectF(ux - r, uy - r, 2 * r, 2 * r)
+        path = QPainterPath()
+        path.arcMoveTo(rect, ang_start)
+        path.arcTo(rect, ang_start, sweep)
+        return path
+
+    def _commit_arc(self, p3: QPointF) -> None:
+        path = self._arc_path(self._p1, self._p2, p3)
+        if path is not None:
+            self._commit(QGraphicsPathItem(path))
+        self.reset()
+        self.canvas.viewport().update()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        painter.setPen(self._preview_pen)
+        if self._phase == 1 and self._p1 is not None and self._cursor is not None:
+            painter.drawLine(QLineF(self._p1, self._cursor))
+        elif self._phase == 2 and self._p1 is not None and self._p2 is not None and self._cursor is not None:
+            path = self._arc_path(self._p1, self._p2, self._cursor)
+            if path is not None:
+                painter.drawPath(path)
+
+
 # ═══════════════════════════════════════════════════════════ polyline
 class PolylineTool(Tool):
     name = "polyline"
@@ -378,7 +585,7 @@ class PolylineTool(Tool):
         self._cur = QPointF(actual)
 
     def _is_start(self, p: QPointF) -> bool:
-        eps = _gs(self.canvas) * 0.5
+        eps = _gs(self.canvas) * 0.2
         return QLineF(p, self._pts[0]).length() <= eps
 
     def on_move(self, p: QPointF) -> None:
@@ -525,15 +732,55 @@ class SelectTool(Tool):
 
 # ═══════════════════════════════════════════════════════════ trim
 class TrimTool(Tool):
+    """Left-click = point trim (original). Left-click drag = fence trim
+    (cuts every item the drag line crosses)."""
     name = "trim"
 
+    @property
+    def in_progress(self) -> bool:
+        return self._dragging
+
+    def reset(self) -> None:
+        self._start = None
+        self._cur = None
+        self._dragging = False
+
     def on_press(self, p: QPointF) -> None:
-        self.canvas.trim_at(p)
+        self._start = QPointF(p)
+        self._cur = QPointF(p)
+        self._dragging = True
+
+    def on_move(self, p: QPointF) -> None:
+        if self._dragging:
+            self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        if not self._dragging:
+            return
+        self._dragging = False
+        end = QPointF(p)
+        if QLineF(self._start, end).length() < _gs(self.canvas) * 0.3:
+            self.canvas.trim_at(self._start)
+        else:
+            self.canvas.trim_fence(self._start, end)
+        self.reset()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._dragging and self._start is not None and self._cur is not None:
+            line = QLineF(self._start, self._cur)
+            if line.length() > 1:
+                pen = QPen(QColor("#C1140C"))
+                pen.setCosmetic(True)
+                pen.setWidthF(1.5)
+                pen.setStyle(Qt.PenStyle.DashLine)
+                painter.setPen(pen)
+                painter.drawLine(line)
 
 
 # ═══════════════════════════════════════════════════════════ extend / fillet
 class ExtendTool(Tool):
-    """Two-click extend: left-click endpoint → click destination to connect.
+    """AutoCAD-style extend: click near a line endpoint → auto-extends to
+    the nearest boundary (other geometry or grid).
     Right-click near two lines → fillet (trim/extend to meet).
     Works as a toolbar tool AND as a held-E modifier from any tool."""
     name = "extend"
@@ -542,63 +789,69 @@ class ExtendTool(Tool):
         self._source_item = None
         self._source_end = None
         self._source_line_orig = None
-        self._phase = 0  # 0=pick source, 1=pick destination
+        self._phase = 0
         self._cursor = None
 
     @property
     def in_progress(self) -> bool:
-        return self._phase > 0
-
-    def cancel(self) -> None:
-        if self._source_item and self._source_line_orig:
-            self._source_item.setLine(self._source_line_orig)
-        self.reset()
-        self.canvas.viewport().update()
+        return False
 
     def on_press(self, p: QPointF) -> None:
-        if self._phase == 0:
-            item, end_idx = self._nearest_endpoint(p)
-            if item is None:
-                return
-            self._source_item = item
-            self._source_end = end_idx
-            self._source_line_orig = QLineF(item.line())
-            self._phase = 1
-        elif self._phase == 1:
-            self._extend_to(p)
-
-    def on_move(self, p: QPointF) -> None:
-        if self._phase == 1 and self._source_item:
-            self._cursor = QPointF(p)
-            ln = self._source_item.line()
-            if self._source_end == 0:
-                self._source_item.setLine(QLineF(p, self._source_line_orig.p2()))
-            else:
-                self._source_item.setLine(QLineF(self._source_line_orig.p1(), p))
-
-    def _extend_to(self, dest: QPointF) -> None:
-        item = self._source_item
-        end = self._source_end
-        orig = self._source_line_orig
-        if item is None or orig is None:
-            self.reset()
+        item, end_idx = self._nearest_endpoint(p)
+        if item is None:
             return
-        item.setLine(orig)
-        if end == 0:
-            new_line = QLineF(dest, orig.p2())
+        orig = QLineF(item.line())
+        target = self._find_extension_target(item, end_idx)
+        if target is None:
+            return
+        if end_idx == 0:
+            new_line = QLineF(target, orig.p2())
         else:
-            new_line = QLineF(orig.p1(), dest)
+            new_line = QLineF(orig.p1(), target)
         us = self.canvas.undo_stack
         if us:
             from .commands import ReshapeCommand
             us.push(ReshapeCommand(item, orig, new_line))
         else:
             item.setLine(new_line)
-        self.reset()
         self.canvas.viewport().update()
 
-    def idle_right_click(self, p: QPointF) -> None:
-        self._fillet_at(p)
+    def _find_extension_target(self, item, end_idx) -> QPointF | None:
+        """Project the line from the given endpoint and find the nearest
+        intersection with any other geometry."""
+        ln = item.line()
+        p1 = item.mapToScene(ln.p1())
+        p2 = item.mapToScene(ln.p2())
+        if end_idx == 0:
+            origin, dx, dy = p1, p1.x() - p2.x(), p1.y() - p2.y()
+        else:
+            origin, dx, dy = p2, p2.x() - p1.x(), p2.y() - p1.y()
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            return None
+        dx /= length
+        dy /= length
+        max_dist = _gs(self.canvas) * 100
+        ray_end = QPointF(origin.x() + dx * max_dist, origin.y() + dy * max_dist)
+        ray = QLineF(origin, ray_end)
+        best_pt = None
+        best_dist = max_dist
+        if self.canvas.document is None:
+            return None
+        for layer in self.canvas.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for other in layer.items():
+                if other is item:
+                    continue
+                for seg in _item_segments(other):
+                    itype, ipt = ray.intersects(seg)
+                    if itype == QLineF.IntersectionType.BoundedIntersection:
+                        d = QLineF(origin, ipt).length()
+                        if 1e-6 < d < best_dist:
+                            best_dist = d
+                            best_pt = QPointF(ipt)
+        return best_pt
 
     def _nearest_endpoint(self, p: QPointF):
         best_item = None
@@ -747,15 +1000,21 @@ class OffsetTool(Tool):
                 QPointF(p2.x() + nx * d, p2.y() + ny * d))
         elif isinstance(item, QGraphicsRectItem):
             r = item.rect()
-            center = r.center()
-            out = (QLineF(center, cursor).length() > QLineF(center, r.topLeft()).length())
-            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            sr = QRectF(tl, br).normalized()
+            center = sr.center()
+            out = (QLineF(center, cursor).length() > QLineF(center, sr.topLeft()).length())
+            nr = sr.adjusted(-d, -d, d, d) if out else sr.adjusted(d, d, -d, -d)
             return nr if nr.width() > 0 and nr.height() > 0 else None
         elif isinstance(item, QGraphicsEllipseItem):
             r = item.rect()
-            center = r.center()
-            out = (QLineF(center, cursor).length() > r.width() / 2)
-            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            sr = QRectF(tl, br).normalized()
+            center = sr.center()
+            out = (QLineF(center, cursor).length() > sr.width() / 2)
+            nr = sr.adjusted(-d, -d, d, d) if out else sr.adjusted(d, d, -d, -d)
             return nr if nr.width() > 0 and nr.height() > 0 else None
         return None
 
@@ -779,28 +1038,40 @@ class OffsetTool(Tool):
             op2 = QPointF(p2.x() + nx * d, p2.y() + ny * d)
             new_item = QGraphicsLineItem(QLineF(op1, op2))
             new_item.setPen(item.pen())
+            if hasattr(item, 'brush'):
+                new_item.setBrush(item.brush())
             new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
             new_item.setData(0, {"zip": "", "note": ""})
             self.canvas.add_item(new_item)
         elif isinstance(item, QGraphicsRectItem):
             r = item.rect()
-            center = r.center()
-            out = (QLineF(center, click).length() > QLineF(center, r.topLeft()).length())
-            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            sr = QRectF(tl, br).normalized()
+            center = sr.center()
+            out = (QLineF(center, click).length() > QLineF(center, sr.topLeft()).length())
+            nr = sr.adjusted(-d, -d, d, d) if out else sr.adjusted(d, d, -d, -d)
             if nr.width() > 0 and nr.height() > 0:
                 new_item = QGraphicsRectItem(nr)
                 new_item.setPen(item.pen())
+                if hasattr(item, 'brush'):
+                    new_item.setBrush(item.brush())
                 new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 new_item.setData(0, {"zip": "", "note": ""})
                 self.canvas.add_item(new_item)
         elif isinstance(item, QGraphicsEllipseItem):
             r = item.rect()
-            center = r.center()
-            out = (QLineF(center, click).length() > r.width() / 2)
-            nr = r.adjusted(-d, -d, d, d) if out else r.adjusted(d, d, -d, -d)
+            tl = item.mapToScene(r.topLeft())
+            br = item.mapToScene(r.bottomRight())
+            sr = QRectF(tl, br).normalized()
+            center = sr.center()
+            out = (QLineF(center, click).length() > sr.width() / 2)
+            nr = sr.adjusted(-d, -d, d, d) if out else sr.adjusted(d, d, -d, -d)
             if nr.width() > 0 and nr.height() > 0:
                 new_item = QGraphicsEllipseItem(nr)
                 new_item.setPen(item.pen())
+                if hasattr(item, 'brush'):
+                    new_item.setBrush(item.brush())
                 new_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 new_item.setData(0, {"zip": "", "note": ""})
                 self.canvas.add_item(new_item)
@@ -1100,6 +1371,7 @@ class RotateTool(Tool):
         if us:
             from .commands import RotateCommand
             us.push(RotateCommand(states))
+        self.canvas.scene().clearSelection()
         self.reset()
         self.canvas.viewport().update()
 
@@ -1132,6 +1404,139 @@ def _pure_rotation(deg: float) -> QTransform:
     return t
 
 
+# ═══════════════════════════════════════════════════════════ mirror
+class MirrorTool(Tool):
+    """Mirror selected items across a two-click axis.
+    1. Select items (or click one), 2. Click axis start, 3. Click axis end.
+    Creates mirrored copies; originals stay."""
+    name = "mirror"
+
+    def reset(self) -> None:
+        self._items: list = []
+        self._p1 = None
+        self._cursor = None
+        self._phase = 0  # 0=pick first axis point, 1=pick second
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def cancel(self) -> None:
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            self.cancel()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            items = list(self.canvas.scene().selectedItems())
+            if not items:
+                pick = self.canvas.pick_item(p)
+                if pick:
+                    self.canvas.scene().clearSelection()
+                    pick.setSelected(True)
+                    items = [pick]
+            if not items:
+                return
+            self._items = items
+            self._p1 = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._commit(QPointF(p))
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 1:
+            self._cursor = QPointF(p)
+
+    def _commit(self, p2: QPointF) -> None:
+        if not self._items or self._p1 is None:
+            self.reset()
+            return
+        axis = QLineF(self._p1, p2)
+        if axis.length() < MIN_DRAG:
+            self.reset()
+            return
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Mirror")
+        for item in self._items:
+            mirrored = self._mirror_item(item, self._p1, p2)
+            if mirrored is not None:
+                self.canvas.add_item(mirrored)
+        if us:
+            us.endMacro()
+        self.canvas.scene().clearSelection()
+        self.reset()
+        self.canvas.viewport().update()
+
+    @staticmethod
+    def _mirror_pt(p: QPointF, a: QPointF, b: QPointF) -> QPointF:
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        lsq = dx * dx + dy * dy
+        if lsq < 1e-12:
+            return QPointF(p)
+        t = ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / lsq
+        proj_x = a.x() + t * dx
+        proj_y = a.y() + t * dy
+        return QPointF(2 * proj_x - p.x(), 2 * proj_y - p.y())
+
+    def _mirror_item(self, item, a: QPointF, b: QPointF):
+        mp = self._mirror_pt
+        if isinstance(item, QGraphicsLineItem):
+            ln = item.line()
+            new = QGraphicsLineItem(QLineF(
+                mp(item.mapToScene(ln.p1()), a, b),
+                mp(item.mapToScene(ln.p2()), a, b)))
+        elif isinstance(item, QGraphicsRectItem):
+            r = item.rect()
+            corners = [mp(item.mapToScene(c), a, b) for c in
+                       (r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft())]
+            path = QPainterPath(corners[0])
+            for c in corners[1:]:
+                path.lineTo(c)
+            path.closeSubpath()
+            new = QGraphicsPathItem(path)
+        elif isinstance(item, QGraphicsEllipseItem):
+            r = item.rect()
+            cx, cy = (r.left() + r.right()) / 2, (r.top() + r.bottom()) / 2
+            mc = mp(item.mapToScene(QPointF(cx, cy)), a, b)
+            rx, ry = r.width() / 2, r.height() / 2
+            new = QGraphicsEllipseItem(QRectF(mc.x() - rx, mc.y() - ry, 2 * rx, 2 * ry))
+        elif isinstance(item, QGraphicsPathItem):
+            old_path = item.path()
+            new_path = QPainterPath()
+            for i in range(old_path.elementCount()):
+                el = old_path.elementAt(i)
+                pt = mp(item.mapToScene(QPointF(el.x, el.y)), a, b)
+                if i == 0:
+                    new_path.moveTo(pt)
+                else:
+                    new_path.lineTo(pt)
+            last_el = old_path.elementAt(old_path.elementCount() - 1)
+            first_el = old_path.elementAt(0)
+            if (abs(last_el.x - first_el.x) < 1e-6
+                    and abs(last_el.y - first_el.y) < 1e-6):
+                new_path.closeSubpath()
+            new = QGraphicsPathItem(new_path)
+        else:
+            return None
+        if hasattr(item, 'pen'):
+            new.setPen(item.pen())
+        if hasattr(item, 'brush'):
+            new.setBrush(item.brush())
+        new.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        new.setData(0, dict(item.data(0)) if item.data(0) else {"zip": "", "note": ""})
+        return new
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase != 1 or self._p1 is None or self._cursor is None:
+            return
+        painter.setPen(self._preview_pen)
+        painter.drawLine(QLineF(self._p1, self._cursor))
+
+
 class PaintTool(Tool):
     """Region flood-fill: fills the closed region you click on (bounded by lines + grid)."""
     name = "paint"
@@ -1160,20 +1565,26 @@ class PaintTool(Tool):
         us = self.canvas.undo_stack
         if us:
             us.beginMacro("Paint region")
-        self._fill_region(p)
+        self._paint_at(p)
 
     def on_move(self, p: QPointF) -> None:
         if self._painting:
-            self._fill_region(p)  # geometry-aware even when dragging
+            self._paint_at(p)
 
     def on_release(self, p: QPointF) -> None:
         if self._painting:
-            self._fill_region(p)
+            self._paint_at(p)
             us = self.canvas.undo_stack
             if us:
                 us.endMacro()
             self._painting = False
             self._filled_cells = set()
+
+    def _paint_at(self, p: QPointF) -> None:
+        if getattr(self.canvas, '_wireframe', True):
+            self._fill_cell(p)
+        else:
+            self._fill_region(p)
 
     def cancel(self) -> None:
         if self._painting:
@@ -1379,6 +1790,10 @@ class WordTextTool(Tool):
     def reset(self) -> None:
         self._active_text = None
 
+    def deactivate(self) -> None:
+        _exit_text(self, self.canvas)
+        self.reset()
+
     def on_press(self, p: QPointF) -> None:
         gs = _gs(self.canvas)
         for item in self.canvas.scene().items(p):
@@ -1422,6 +1837,10 @@ class CellTextTool(Tool):
 
     def reset(self) -> None:
         self._active_text = None
+
+    def deactivate(self) -> None:
+        _exit_text(self, self.canvas)
+        self.reset()
 
     def on_press(self, p: QPointF) -> None:
         gs = _gs(self.canvas)

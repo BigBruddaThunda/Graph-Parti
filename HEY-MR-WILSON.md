@@ -110,7 +110,29 @@ build (x86 Linux + Android NDK + `pyside6-android-deploy`) — not buildable fro
 - Home-PC memory → `C:\Users\iamja\.claude\memory\reference_district_file_system.md` +
   `reference_place_layer_context.md` + `reference_graphparti_cockpit_layout.md`
 
+## Built (2026-06-17 · Wave 1 tool pass + joystick + build plan)
+**Tool additions:** Mirror (M) · Ellipse (2-point axis + width) · Arc (3-point) · Fence trim
+(left-drag on Trim tool, or right-drag on any tool). **Bug fixes:** selection clears on tool
+switch · text defocus on click-away/tool-switch · copy carries fill color · offset works on
+moved items · rotate clears selection · trim merges micro-fragments · polyline tighter close
+threshold. **Paint tool:** grid-on uses solid cell rects (no more pixelated flood fill).
+**Text:** dotted border shows claimed space. Text tools properly deactivate on tool switch.
+**Trim keeps shapes as one piece:** sibling edges stay as connected QGraphicsPathItem, not
+individual lines.
+
+**Viewport navigation system** (`graphparti/joystick.py`): `ViewNavigator` — one movement
+grammar, three input surfaces (joystick, arrow keys, future z-pad). Two modes: grid-on =
+cell-stepped orthogonal (tile-based), grid-off = smooth analog (free-roam). Joystick reads
+via `winmm.dll`, polls at 60fps, only active when window has focus.
+
+**Build plan ratified** (6 phases): A stabilize → B size math (600x1399, 3:7, percentage
+anchors) → C tool polish → D icon discipline → E engine prototype → F operator panels.
+
 ## Flags
+- **seam:GP-PATH RESOLVED** — `C:\Users\iamja\Desktop\graph-parti` (branch **master**) is
+  the **live build canvas**. `C:\Users\iamja\Documents\graph parti\Graph-Parti` (branch
+  **main**) is the **research/design canvas** (base-diameter docs, cascades). Same remote
+  (`BigBruddaThunda/Graph-Parti`), different branches. Build work goes to Desktop/master.
 - This repo (`Graph-Parti`) is **public**; the archideck home base is private. Flip to private
   if the tool should stay closed.
 - A stray `codex/decide-and-update-district-zip-schema` branch from another agent is left in place.
