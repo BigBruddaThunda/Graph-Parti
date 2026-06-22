@@ -21,6 +21,7 @@ from .tools import (
     EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     TrimTool, WordTextTool,
+    set_line_type, LINE_TYPES,
 )
 
 _SCENE_HALF = 100_000
@@ -562,6 +563,17 @@ class CanvasWidget(QWidget):
         tb.addWidget(self._line_palette)
         self._line_palette.color_selected.connect(self._on_line_color_selected)
 
+        # ── Line type cycle ──
+        tb.addSeparator()
+        self._line_type_idx = 0
+        self._line_type_names = list(LINE_TYPES.keys())
+        self._line_type_btn = QToolButton()
+        self._line_type_btn.setText("——")
+        self._line_type_btn.setToolTip("Line type: continuous")
+        self._line_type_btn.setFixedWidth(40)
+        self._line_type_btn.clicked.connect(self._cycle_line_type)
+        tb.addWidget(self._line_type_btn)
+
         return tb
 
     def _activate_tool(self, key: str) -> None:
@@ -588,6 +600,18 @@ class CanvasWidget(QWidget):
         if self.view.active_tool is not self._tools.get("line"):
             self._tool_actions["line"].setChecked(True)
             self._activate_tool("line")
+
+    def _cycle_line_type(self) -> None:
+        names = list(LINE_TYPES.keys())
+        self._line_type_idx = (self._line_type_idx + 1) % len(names)
+        name = names[self._line_type_idx]
+        labels = {"continuous": "——", "dashed": "- -", "hidden": "··",
+                  "center": "—·—", "phantom": "—··", "dot": "····", "dashdot": "—·"}
+        self._line_type_btn.setText(labels.get(name, name))
+        self._line_type_btn.setToolTip(f"Line type: {name}")
+        self.view._active_line_type = name
+        for item in self.view.scene().selectedItems():
+            set_line_type(item, name)
 
     def _on_emoji_clicked(self, glyph: str) -> None:
         from PySide6.QtWidgets import QGraphicsTextItem

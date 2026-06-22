@@ -394,3 +394,25 @@ def test_hatch_fills_closed_rect(canvas_env):
     hatches = [i for i in scene.items()
                if isinstance(i, QGraphicsPathItem) and i.data(1) == "hatch_fill"]
     assert len(hatches) >= 1, "Expected at least 1 hatch pattern item"
+
+
+def test_line_type_dashed(canvas_env):
+    from PySide6.QtCore import QLineF, Qt
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import make_pen, set_line_type
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(100, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    view.add_item(line)
+
+    set_line_type(line, "dashed")
+    assert line.pen().style() == Qt.PenStyle.DashLine, "Expected DashLine style"
+
+    set_line_type(line, "center")
+    assert line.pen().style() == Qt.PenStyle.CustomDashLine, "Expected CustomDashLine for center"
+
+    set_line_type(line, "continuous")
+    assert line.pen().style() == Qt.PenStyle.SolidLine, "Expected SolidLine for continuous"

@@ -38,6 +38,33 @@ def make_pen(color: str, width: float) -> QPen:
     return pen
 
 
+LINE_TYPES = {
+    "continuous": None,
+    "dashed":     [8, 4],
+    "hidden":     [4, 4],
+    "center":     [16, 4, 4, 4],
+    "phantom":    [16, 4, 4, 4, 4, 4],
+    "dot":        [2, 4],
+    "dashdot":    [8, 4, 2, 4],
+}
+
+
+def set_line_type(item, type_name: str) -> None:
+    """Apply a named line type to a QGraphicsItem's pen."""
+    if not hasattr(item, 'pen') or not hasattr(item, 'setPen'):
+        return
+    pen = QPen(item.pen())
+    pattern = LINE_TYPES.get(type_name)
+    if pattern is None:
+        pen.setStyle(Qt.PenStyle.SolidLine)
+    elif type_name == "dashed":
+        pen.setStyle(Qt.PenStyle.DashLine)
+    else:
+        pen.setStyle(Qt.PenStyle.CustomDashLine)
+        pen.setDashPattern([float(v) for v in pattern])
+    item.setPen(pen)
+
+
 def _ortho_snap(start: QPointF, p: QPointF, angle_step: int = 90) -> QPointF:
     """Constrain *p* to the nearest angle multiple of *angle_step* from *start*."""
     dx = p.x() - start.x()
