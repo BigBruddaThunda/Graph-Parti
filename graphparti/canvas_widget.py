@@ -18,7 +18,7 @@ from .document import Document
 from .tools import (
     ArcTool, CellTextTool, CircleTool, ConstructionLineTool, CopyTool,
     DivideTool, EllipseTool,
-    EyedropperTool, ExtendTool, LineTool, MirrorTool, OffsetTool, PaintTool,
+    EyedropperTool, ExtendTool, LineTool, MatchPropTool, MirrorTool, OffsetTool, PaintTool,
     PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool, TrimTool,
     WordTextTool,
 )
@@ -284,6 +284,7 @@ class CanvasWidget(QWidget):
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "xline": ConstructionLineTool(self.view),
+            "matchprop": MatchPropTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -447,6 +448,7 @@ class CanvasWidget(QWidget):
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
             ("xline", "XLine", ""),
+            ("matchprop", "Match", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)

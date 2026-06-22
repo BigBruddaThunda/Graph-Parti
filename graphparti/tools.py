@@ -2294,3 +2294,35 @@ class ConstructionLineTool(Tool):
                 d2.setLength(self._EXTENT)
                 far_p1 = d2.p2()
                 painter.drawLine(QLineF(far_p1, far_p2))
+
+
+# ═══════════════════════════════════════════════════════════ property match
+class MatchPropTool(Tool):
+    """Click source → click targets to copy pen/brush. Escape exits."""
+    name = "matchprop"
+
+    def reset(self) -> None:
+        self._src_pen = None
+        self._src_brush = None
+        self._phase = 0  # 0=pick source, 1=apply to targets
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        item = self.canvas.pick_item(p)
+        if item is None:
+            return
+
+        if self._phase == 0:
+            if hasattr(item, 'pen') and callable(getattr(item, 'pen', None)):
+                self._src_pen = QPen(item.pen())
+            if hasattr(item, 'brush') and callable(getattr(item, 'brush', None)):
+                self._src_brush = QBrush(item.brush())
+            self._phase = 1
+        else:
+            if self._src_pen is not None and hasattr(item, 'setPen'):
+                item.setPen(QPen(self._src_pen))
+            if self._src_brush is not None and hasattr(item, 'setBrush'):
+                item.setBrush(QBrush(self._src_brush))

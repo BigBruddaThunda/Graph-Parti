@@ -77,3 +77,35 @@ def test_construction_line_creates_long_line(canvas_env):
     # The line should extend far beyond the two clicked points
     ln = lines[0].line()
     assert ln.length() > 50000, f"Construction line too short: {ln.length()}"
+
+
+def test_matchprop_copies_pen_color(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import MatchPropTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    # Source line: red
+    src = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(100, 0)))
+    src.setPen(make_pen("#C1140C", 1.0))
+    src.setFlag(src.GraphicsItemFlag.ItemIsSelectable, True)
+    src.setData(0, {"zip": "", "note": ""})
+    view.add_item(src)
+
+    # Target line: default grey
+    tgt = QGraphicsLineItem(QLineF(QPointF(0, 40), QPointF(100, 40)))
+    tgt.setPen(make_pen("#3C3C3C", 1.0))
+    tgt.setFlag(tgt.GraphicsItemFlag.ItemIsSelectable, True)
+    tgt.setData(0, {"zip": "", "note": ""})
+    view.add_item(tgt)
+
+    tool = MatchPropTool(view)
+    # Click source (at y=0, on the red line)
+    tool.on_press(QPointF(50, 0))
+    # Click target (at y=40, on the grey line)
+    tool.on_press(QPointF(50, 40))
+
+    assert tgt.pen().color().name() == "#c1140c", (
+        f"Expected target pen #c1140c, got {tgt.pen().color().name()}"
+    )
