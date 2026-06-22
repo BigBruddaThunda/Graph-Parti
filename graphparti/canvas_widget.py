@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, ArrayPolarTool, ArrayRectTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
+    ArcTool, ArrayPolarTool, ArrayRectTool, BlockInsertTool, BlockSaveTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MeasureTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PerspectiveTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
@@ -286,6 +286,8 @@ class CanvasWidget(QWidget):
             "arc": ArcTool(self.view),
             "array_rect": ArrayRectTool(self.view),
             "array_polar": ArrayPolarTool(self.view),
+            "block_save": BlockSaveTool(self.view),
+            "block_insert": BlockInsertTool(self.view),
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "fillet": FilletTool(self.view),
@@ -462,6 +464,7 @@ class CanvasWidget(QWidget):
             ("polyline", "Polyline", "P"), ("rect", "Rect", "R"),
             ("circle", "Circle", "C"), ("ellipse", "Ellipse", ""),
             ("arc", "Arc", ""), ("array_rect", "ArrR", ""), ("array_polar", "ArrP", ""),
+            ("block_save", "BlkS", ""), ("block_insert", "BlkI", ""),
             ("trim", "Trim", "T"),
             ("extend", "Extend", ""), ("divide", "Divide", "D"),
             ("rotate", "Rotate", ""),

@@ -3830,3 +3830,96 @@ class PerspectiveTool(Tool):
                          key=lambda v: QLineF(v, self._cur).length())
             painter.setPen(vp_pen)
             painter.drawLine(QLineF(nearest, self._cur))
+
+
+# ═══════════════════════════════════════════════════════════ block save
+class BlockSaveTool(Tool):
+    """Select items → save as a named block (reusable group)."""
+    name = "block_save"
+
+    def reset(self) -> None:
+        self._last_block = None
+
+    def on_press(self, p: QPointF) -> None:
+        selected = self.canvas.scene().selectedItems()
+        if not selected:
+            return
+        self._capture_block("block")
+
+    def _capture_block(self, name: str) -> dict | None:
+        selected = self.canvas.scene().selectedItems()
+        if not selected:
+            return None
+        r = QRectF()
+        for it in selected:
+            r = r.united(it.sceneBoundingRect())
+        origin = r.center()
+
+        items_data = []
+        for it in selected:
+            bp = self.canvas._item_blueprint(it)
+            if bp is None:
+                continue
+            shifted = _item_from_blueprint(bp, QPointF(-origin.x(), -origin.y()))
+            if shifted is None:
+                continue
+            from .document import Document
+            sd = Document._serialize_item(shifted)
+            if sd.get("type") != "unknown":
+                items_data.append(sd)
+
+        if not items_data:
+            return None
+
+        block = {"name": name, "origin": [origin.x(), origin.y()],
+                 "items": items_data}
+        self._last_block = block
+        return block
+
+
+# ═══════════════════════════════════════════════════════════ block insert
+class BlockInsertTool(Tool):
+    """Click to insert a saved block at the click point."""
+    name = "block_insert"
+
+    def reset(self) -> None:
+        if not hasattr(self, '_block_data'):
+            self._block_data = None
+        self._cur = None
+
+    def on_press(self, p: QPointF) -> None:
+        if self._block_data is None:
+            return
+        items_data = self._block_data.get("items", [])
+        if not items_data:
+            return
+
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Insert block")
+
+        for sd in items_data:
+            from .document import Document
+            item = Document._deserialize_item(sd)
+            if item is not None:
+                item.moveBy(p.x(), p.y())
+                self.canvas.add_item(item)
+
+        if us:
+            us.endMacro()
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._cur is not None and self._block_data is not None:
+            painter.setPen(self._preview_pen)
+            gs = _gs(self.canvas)
+            painter.drawEllipse(self._cur, gs * 0.3, gs * 0.3)
+            painter.drawLine(QLineF(self._cur.x() - gs * 0.5, self._cur.y(),
+                                     self._cur.x() + gs * 0.5, self._cur.y()))
+            painter.drawLine(QLineF(self._cur.x(), self._cur.y() - gs * 0.5,
+                                     self._cur.x(), self._cur.y() + gs * 0.5))

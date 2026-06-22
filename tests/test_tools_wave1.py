@@ -549,3 +549,31 @@ def test_perspective_assistant_stores_vps(canvas_env):
 
     assert len(tool._vanishing_points) == 2
     assert tool._vanishing_points[0] == QPointF(300, -200)
+
+
+def test_block_save_and_insert(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import BlockSaveTool, BlockInsertTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(40, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    line.setData(0, {"zip": "", "note": ""})
+    view.add_item(line)
+    line.setSelected(True)
+
+    save_tool = BlockSaveTool(view)
+    block_data = save_tool._capture_block("test_block")
+    assert block_data is not None
+    assert block_data["name"] == "test_block"
+    assert len(block_data["items"]) == 1
+
+    insert_tool = BlockInsertTool(view)
+    insert_tool._block_data = block_data
+    insert_tool.on_press(QPointF(100, 100))
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    assert len(lines) == 2, f"Expected 2 lines (original + inserted), got {len(lines)}"
