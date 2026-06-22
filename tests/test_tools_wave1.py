@@ -369,3 +369,28 @@ def test_leader_creates_annotation(canvas_env):
     leaders = [i for i in scene.items()
                if isinstance(i, QGraphicsPathItem) and i.data(1) == "leader"]
     assert len(leaders) == 1, f"Expected 1 leader, got {len(leaders)}"
+
+
+def test_hatch_fills_closed_rect(canvas_env):
+    from PySide6.QtCore import QRectF
+    from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsPathItem
+    from graphparti.tools import HatchTool, make_pen
+
+    view, scene, undo = canvas_env
+    gs = view.grid_spacing
+
+    rect = QGraphicsRectItem(QRectF(0, 0, 80, 80))
+    rect.setPen(make_pen("#3C3C3C", 1.0))
+    rect.setFlag(rect.GraphicsItemFlag.ItemIsSelectable, True)
+    rect.setData(0, {"zip": "", "note": ""})
+    view.add_item(rect)
+
+    tool = HatchTool(view)
+    tool._angle = 45.0
+    tool._spacing = 1.0
+
+    tool.on_press(QPointF(40, 40))
+
+    hatches = [i for i in scene.items()
+               if isinstance(i, QGraphicsPathItem) and i.data(1) == "hatch_fill"]
+    assert len(hatches) >= 1, "Expected at least 1 hatch pattern item"

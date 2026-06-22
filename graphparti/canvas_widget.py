@@ -18,7 +18,7 @@ from .document import Document
 from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
-    EyedropperTool, ExtendTool, FilletTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
+    EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     TrimTool, WordTextTool,
 )
@@ -287,6 +287,7 @@ class CanvasWidget(QWidget):
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "fillet": FilletTool(self.view),
+            "hatch": HatchTool(self.view),
             "chamfer": ChamferTool(self.view),
             "join": JoinTool(self.view),
             "leader": LeaderTool(self.view),
@@ -460,6 +461,7 @@ class CanvasWidget(QWidget):
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
             ("fillet", "Fillet", ""),
+            ("hatch", "Hatch", "H"),
             ("chamfer", "Chamfer", ""),
             ("join", "Join", "J"),
             ("leader", "Leader", ""),

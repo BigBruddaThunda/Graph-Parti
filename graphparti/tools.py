@@ -3324,3 +3324,130 @@ class LeaderTool(Tool):
         if self._phase == 1 and len(self._pts) == 1 and self._cur is not None:
             painter.setPen(self._preview_pen)
             painter.drawLine(QLineF(self._pts[0], self._cur))
+
+
+# ═══════════════════════════════════════════════════════════ hatch
+class HatchTool(Tool):
+    """Click inside a closed boundary → fill with hatch pattern lines."""
+    name = "hatch"
+
+    _FILL_RADIUS = 15
+
+    def reset(self) -> None:
+        if not hasattr(self, '_angle'):
+            self._angle = 45.0
+        if not hasattr(self, '_spacing'):
+            self._spacing = 0.5
+
+    def on_press(self, p: QPointF) -> None:
+        gs = _gs(self.canvas)
+        N = self._FILL_RADIUS
+        area_x = math.floor(p.x() / gs) * gs - N * gs
+        area_y = math.floor(p.y() / gs) * gs - N * gs
+        area_w = (2 * N + 1) * gs
+        area_h = (2 * N + 1) * gs
+        area = QRectF(area_x, area_y, area_w, area_h)
+        iw, ih = int(area_w), int(area_h)
+
+        img = QImage(iw, ih, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        ptr = QPainter(img)
+        ptr.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        barrier_pen = QPen(QColor(1, 0, 1, 255))
+        barrier_pen.setWidthF(2.0)
+        ptr.setPen(barrier_pen)
+
+        if getattr(self.canvas, '_wireframe', True):
+            gx = int(math.ceil(area_x / gs) * gs)
+            while gx <= area_x + area_w:
+                ix = int(gx - area_x)
+                ptr.drawLine(ix, 0, ix, ih - 1)
+                gx += gs
+            gy = int(math.ceil(area_y / gs) * gs)
+            while gy <= area_y + area_h:
+                iy = int(gy - area_y)
+                ptr.drawLine(0, iy, iw - 1, iy)
+                gy += gs
+
+        for layer in self.canvas.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                if item.data(1) in ("cell_fill", "div_point", "hatch_fill"):
+                    continue
+                if not item.sceneBoundingRect().intersects(area):
+                    continue
+                for seg in _item_segments(item):
+                    x1 = seg.p1().x() - area_x
+                    y1 = seg.p1().y() - area_y
+                    x2 = seg.p2().x() - area_x
+                    y2 = seg.p2().y() - area_y
+                    ptr.drawLine(QLineF(x1, y1, x2, y2))
+        ptr.end()
+
+        fx = max(0, min(int(p.x() - area_x), iw - 1))
+        fy = max(0, min(int(p.y() - area_y), ih - 1))
+        if img.pixel(fx, fy) != 0:
+            for dx_try, dy_try in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1)]:
+                nx, ny = fx + dx_try, fy + dy_try
+                if 0 <= nx < iw and 0 <= ny < ih and img.pixel(nx, ny) == 0:
+                    fx, fy = nx, ny
+                    break
+            else:
+                return
+
+        fill_marker = QColor(0, 255, 0, 255).rgba()
+        _flood_fill(img, fx, fy, fill_marker)
+
+        angle_rad = math.radians(self._angle)
+        spacing_px = max(2, int(self._spacing * gs))
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        diag = math.hypot(iw, ih)
+        cx, cy = iw / 2.0, ih / 2.0
+        n_lines = int(diag / spacing_px) + 2
+
+        hatch_path = QPainterPath()
+        for i in range(-n_lines, n_lines + 1):
+            offset = i * spacing_px
+            ox = cx + offset * (-sin_a)
+            oy = cy + offset * cos_a
+            lx1 = ox - diag * cos_a
+            ly1 = oy - diag * sin_a
+            lx2 = ox + diag * cos_a
+            ly2 = oy + diag * sin_a
+
+            steps = max(2, int(math.hypot(lx2 - lx1, ly2 - ly1)))
+            inside = False
+            seg_start = None
+            for s in range(steps + 1):
+                t = s / steps
+                sx = int(lx1 + t * (lx2 - lx1))
+                sy = int(ly1 + t * (ly2 - ly1))
+                is_in = (0 <= sx < iw and 0 <= sy < ih
+                         and img.pixel(sx, sy) == fill_marker)
+                if is_in and not inside:
+                    seg_start = (lx1 + t * (lx2 - lx1), ly1 + t * (ly2 - ly1))
+                    inside = True
+                elif not is_in and inside and seg_start is not None:
+                    seg_end = (lx1 + t * (lx2 - lx1), ly1 + t * (ly2 - ly1))
+                    hatch_path.moveTo(seg_start[0] + area_x, seg_start[1] + area_y)
+                    hatch_path.lineTo(seg_end[0] + area_x, seg_end[1] + area_y)
+                    inside = False
+            if inside and seg_start is not None:
+                seg_end = (lx2, ly2)
+                hatch_path.moveTo(seg_start[0] + area_x, seg_start[1] + area_y)
+                hatch_path.lineTo(seg_end[0] + area_x, seg_end[1] + area_y)
+
+        if hatch_path.isEmpty():
+            return
+
+        item = QGraphicsPathItem(hatch_path)
+        pen = QPen(QColor("#3C3C3C"))
+        pen.setWidthF(0.5)
+        pen.setCosmetic(True)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "hatch_fill")
+        self.canvas.add_item(item)
