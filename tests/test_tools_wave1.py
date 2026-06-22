@@ -506,3 +506,17 @@ def test_measure_shows_distance(canvas_env):
     measures = [i for i in scene.items()
                 if isinstance(i, QGraphicsPathItem) and i.data(1) == "measure"]
     assert len(measures) == 1, f"Expected 1 measure annotation, got {len(measures)}"
+
+
+def test_add_named_layer(canvas_env):
+    from graphparti.document import VectorLayer
+
+    view, scene, undo = canvas_env
+    doc = view.document
+
+    initial_count = len(doc.layers)
+    new_layer = doc.add_layer(VectorLayer("details", scene), active=True)
+
+    assert len(doc.layers) == initial_count + 1
+    assert doc.active_layer().name == "details"
+    assert new_layer.kind == "vector"

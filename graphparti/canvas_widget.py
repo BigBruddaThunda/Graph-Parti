@@ -333,6 +333,13 @@ class CanvasWidget(QWidget):
             status_lay.addWidget(btn)
             self._layer_buttons.append(btn)
 
+        add_layer_btn = QToolButton()
+        add_layer_btn.setText("+")
+        add_layer_btn.setFixedSize(20, 20)
+        add_layer_btn.setToolTip("Add new vector layer")
+        add_layer_btn.clicked.connect(self._add_user_layer)
+        status_lay.addWidget(add_layer_btn)
+
         layout.addWidget(status_bar)
 
         # ── SCL bottom band (61 glyphs + ± + text composer) ──
@@ -743,3 +750,15 @@ class CanvasWidget(QWidget):
             f = btn.font()
             f.setBold(active)
             btn.setFont(f)
+
+    def _add_user_layer(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+        from .document import VectorLayer
+        name, ok = QInputDialog.getText(self, "New Layer", "Layer name:")
+        if ok and name.strip():
+            layer = self.document.add_layer(
+                VectorLayer(name.strip(), self.scene), active=True
+            )
+            self._layer_mode = name.strip()
+            self.view._layer_mode = name.strip()
+            self._refresh_layer_buttons()

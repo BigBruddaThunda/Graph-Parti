@@ -162,6 +162,38 @@ class Document:
                 return layer
         return None
 
+    def remove_layer(self, layer: Layer) -> bool:
+        """Remove a layer and all its items. Returns False if it's the last layer."""
+        if layer not in self.layers or len(self.layers) <= 1:
+            return False
+        idx = self.layers.index(layer)
+        if isinstance(layer, VectorLayer):
+            for item in list(layer.items()):
+                layer.remove_item(item)
+        self.layers.remove(layer)
+        if self.active_index >= len(self.layers):
+            self.active_index = len(self.layers) - 1
+        self._reindex_z()
+        return True
+
+    def move_layer(self, layer: Layer, delta: int) -> None:
+        """Move a layer up (delta=+1) or down (delta=-1) in the stack."""
+        idx = self.layers.index(layer)
+        new_idx = max(0, min(len(self.layers) - 1, idx + delta))
+        if new_idx == idx:
+            return
+        self.layers.pop(idx)
+        self.layers.insert(new_idx, layer)
+        if self.active_index == idx:
+            self.active_index = new_idx
+        self._reindex_z()
+
+    def _reindex_z(self) -> None:
+        """Recompute z-index for all layers after a reorder/remove."""
+        for i, layer in enumerate(self.layers):
+            layer.z_index = i + 1
+            layer.apply_z()
+
     @classmethod
     def default(cls, scene: QGraphicsScene, paper: QRectF) -> "Document":
         """parti (raster ref) · trace (vector, active) · book (vector, zip boxes).
