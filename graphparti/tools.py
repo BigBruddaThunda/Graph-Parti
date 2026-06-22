@@ -2227,3 +2227,70 @@ class EyedropperTool(Tool):
                 if pen.style() != Qt.PenStyle.NoPen:
                     self.canvas.set_stroke(pen.color().name())
                     return
+
+
+# ═══════════════════════════════════════════════════════════ construction line
+class ConstructionLineTool(Tool):
+    """Click two points → infinite construction/reference line through both.
+    Blue dash-dot, tagged data(1)='construction'."""
+    name = "xline"
+
+    _EXTENT = 100_000  # scene units — effectively infinite
+
+    def reset(self) -> None:
+        self._start = None
+        self._cur = None
+        self._phase = 0  # 0=pick first, 1=pick second
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            self._start = QPointF(p)
+            self._cur = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._create_xline(self._start, QPointF(p))
+            self._start = QPointF(p)
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 1:
+            self._cur = self._apply_ortho(self._start, p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def _create_xline(self, p1: QPointF, p2: QPointF) -> None:
+        d = QLineF(p1, p2)
+        if d.length() < MIN_DRAG:
+            return
+        d.setLength(self._EXTENT)
+        far_p2 = d.p2()
+        d = QLineF(p2, p1)
+        d.setLength(self._EXTENT)
+        far_p1 = d.p2()
+
+        item = QGraphicsLineItem(QLineF(far_p1, far_p2))
+        pen = QPen(QColor("#2464E5"))
+        pen.setWidthF(0.5)
+        pen.setCosmetic(True)
+        pen.setStyle(Qt.PenStyle.DashDotLine)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "construction")
+        self.canvas.add_item(item)
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase == 1 and self._start is not None and self._cur is not None:
+            painter.setPen(self._preview_pen)
+            d = QLineF(self._start, self._cur)
+            if d.length() > MIN_DRAG:
+                d.setLength(self._EXTENT)
+                far_p2 = d.p2()
+                d2 = QLineF(self._cur, self._start)
+                d2.setLength(self._EXTENT)
+                far_p1 = d2.p2()
+                painter.drawLine(QLineF(far_p1, far_p2))

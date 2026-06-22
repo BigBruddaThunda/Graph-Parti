@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, CellTextTool, CircleTool, CopyTool, DivideTool, EllipseTool,
+    ArcTool, CellTextTool, CircleTool, ConstructionLineTool, CopyTool,
+    DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, LineTool, MirrorTool, OffsetTool, PaintTool,
     PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool, TrimTool,
     WordTextTool,
@@ -282,6 +283,7 @@ class CanvasWidget(QWidget):
             "arc": ArcTool(self.view),
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
+            "xline": ConstructionLineTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -444,6 +446,7 @@ class CanvasWidget(QWidget):
             ("word", "Word", "A"), ("cell", "Cell", "G"),
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
+            ("xline", "XLine", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)

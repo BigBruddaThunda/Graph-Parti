@@ -56,3 +56,24 @@ def test_eyedropper_samples_stroke_color(canvas_env):
     assert view._stroke_color.upper() == "#C1140C", (
         f"Expected stroke #C1140C, got {view._stroke_color}"
     )
+
+
+def test_construction_line_creates_long_line(canvas_env):
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import ConstructionLineTool
+
+    view, scene, undo = canvas_env
+
+    tool = ConstructionLineTool(view)
+    # Click two points to define direction
+    tool.on_press(QPointF(0, 0))
+    tool.on_release(QPointF(0, 0))
+    tool.on_press(QPointF(100, 0))
+    tool.on_release(QPointF(100, 0))
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)
+             and i.data(1) == "construction"]
+    assert len(lines) == 1, f"Expected 1 construction line, got {len(lines)}"
+    # The line should extend far beyond the two clicked points
+    ln = lines[0].line()
+    assert ln.length() > 50000, f"Construction line too short: {ln.length()}"
