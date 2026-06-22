@@ -166,3 +166,32 @@ def test_array_rect_creates_grid(canvas_env):
     undo.undo()
     lines_after = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
     assert len(lines_after) == 1, f"After undo, expected 1 line, got {len(lines_after)}"
+
+
+def test_array_polar_creates_ring(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import ArrayPolarTool, make_pen
+
+    view, scene, undo = canvas_env
+    gs = view.grid_spacing  # 20
+
+    # Source line at (60, 0) — 3 cells right of origin
+    src = QGraphicsLineItem(QLineF(QPointF(60, 0), QPointF(100, 0)))
+    src.setPen(make_pen("#3C3C3C", 1.0))
+    src.setFlag(src.GraphicsItemFlag.ItemIsSelectable, True)
+    src.setData(0, {"zip": "", "note": ""})
+    view.add_item(src)
+    src.setSelected(True)
+
+    tool = ArrayPolarTool(view)
+    tool._count = 4
+    tool._total_angle = 360.0
+    tool.activate()
+    # Click center at origin
+    tool.on_press(QPointF(0, 0))
+    tool.on_release(QPointF(0, 0))
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    # 4 total (original + 3 copies at 90 degree intervals)
+    assert len(lines) == 4, f"Expected 4 lines, got {len(lines)}"

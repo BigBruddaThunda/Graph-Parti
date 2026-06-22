@@ -2450,3 +2450,94 @@ class ArrayRectTool(Tool):
                         self.canvas.add_item(item)
         if us:
             us.endMacro()
+
+
+# ═══════════════════════════════════════════════════════════ array polar
+class ArrayPolarTool(Tool):
+    """Clone selection around a center point. Click to set center.
+    _count = number of total copies (including original), _total_angle = sweep degrees."""
+    name = "array_polar"
+
+    def reset(self) -> None:
+        if not hasattr(self, '_count'):
+            self._count = 6
+        if not hasattr(self, '_total_angle'):
+            self._total_angle = 360.0
+
+    def activate(self) -> None:
+        pass
+
+    def on_press(self, p: QPointF) -> None:
+        center = QPointF(p)
+        items = self.canvas.scene().selectedItems()
+        if not items:
+            return
+        blueprints = []
+        for it in items:
+            bp = self.canvas._item_blueprint(it)
+            if bp:
+                blueprints.append(bp)
+        if not blueprints:
+            return
+
+        step_deg = self._total_angle / self._count
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Array polar")
+        for i in range(1, self._count):
+            angle_rad = math.radians(i * step_deg)
+            cos_a = math.cos(angle_rad)
+            sin_a = math.sin(angle_rad)
+            for bp in blueprints:
+                rotated_bp = _rotate_blueprint(bp, center, cos_a, sin_a)
+                if rotated_bp is not None:
+                    item = _item_from_blueprint(rotated_bp, QPointF(0, 0))
+                    if item is not None:
+                        self.canvas.add_item(item)
+        if us:
+            us.endMacro()
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+
+def _rotate_point(pt: QPointF, center: QPointF, cos_a: float, sin_a: float) -> QPointF:
+    """Rotate pt around center by the angle whose cos/sin are given."""
+    dx = pt.x() - center.x()
+    dy = pt.y() - center.y()
+    return QPointF(center.x() + dx * cos_a - dy * sin_a,
+                   center.y() + dx * sin_a + dy * cos_a)
+
+
+def _rotate_blueprint(bp, center: QPointF, cos_a: float, sin_a: float):
+    """Return a new blueprint with all geometry rotated around center."""
+    if bp[0] == "line":
+        ln = bp[1]
+        p1 = _rotate_point(ln.p1(), center, cos_a, sin_a)
+        p2 = _rotate_point(ln.p2(), center, cos_a, sin_a)
+        return ("line", QLineF(p1, p2), bp[2], bp[3],
+                bp[4] if len(bp) > 4 else None)
+    elif bp[0] == "rect":
+        r = bp[1]
+        tl = _rotate_point(r.topLeft(), center, cos_a, sin_a)
+        br = _rotate_point(r.bottomRight(), center, cos_a, sin_a)
+        return ("rect", QRectF(tl, br).normalized(), bp[2], bp[3],
+                bp[4] if len(bp) > 4 else None)
+    elif bp[0] == "ellipse":
+        r = bp[1]
+        tl = _rotate_point(r.topLeft(), center, cos_a, sin_a)
+        br = _rotate_point(r.bottomRight(), center, cos_a, sin_a)
+        return ("ellipse", QRectF(tl, br).normalized(), bp[2], bp[3],
+                bp[4] if len(bp) > 4 else None)
+    elif bp[0] == "path":
+        src = bp[1]
+        sp = QPainterPath()
+        for i in range(src.elementCount()):
+            el = src.elementAt(i)
+            pt = _rotate_point(QPointF(el.x, el.y), center, cos_a, sin_a)
+            if i == 0:
+                sp.moveTo(pt)
+            else:
+                sp.lineTo(pt)
+        return ("path", sp, bp[2], bp[3], bp[4] if len(bp) > 4 else None)
+    return None
