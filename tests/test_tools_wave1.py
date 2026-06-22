@@ -353,3 +353,19 @@ def test_linear_dim_creates_annotation(canvas_env):
     dims = [i for i in scene.items()
             if isinstance(i, QGraphicsPathItem) and i.data(1) == "dimension"]
     assert len(dims) == 1, f"Expected 1 dimension, got {len(dims)}"
+
+
+def test_leader_creates_annotation(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import LeaderTool
+
+    view, scene, undo = canvas_env
+
+    tool = LeaderTool(view)
+    tool.on_press(QPointF(100, 100))
+    tool.on_press(QPointF(140, 80))
+    tool._finish_leader("NOTE")
+
+    leaders = [i for i in scene.items()
+               if isinstance(i, QGraphicsPathItem) and i.data(1) == "leader"]
+    assert len(leaders) == 1, f"Expected 1 leader, got {len(leaders)}"

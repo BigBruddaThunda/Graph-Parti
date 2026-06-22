@@ -3237,3 +3237,90 @@ class LinearDimTool(Tool):
             mid = QPointF((self._pts[0].x() + self._pts[1].x()) / 2,
                           (self._pts[0].y() + self._pts[1].y()) / 2)
             painter.drawLine(QLineF(mid, self._cur))
+
+
+# ═══════════════════════════════════════════════════════════ leader
+class LeaderTool(Tool):
+    """Click arrowhead → click shoulder → annotation with arrow + text."""
+    name = "leader"
+
+    _ARROW_LEN = 0.3
+    _ARROW_HALF = 0.1
+    _LANDING = 1.0
+
+    def reset(self) -> None:
+        self._pts = []
+        self._phase = 0
+        self._cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        self._pts.append(QPointF(p))
+        self._phase += 1
+        if self._phase == 2:
+            self._finish_leader("—")
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def _finish_leader(self, text: str) -> None:
+        if len(self._pts) < 2:
+            return
+        arrow_pt, shoulder = self._pts[0], self._pts[1]
+        gs = _gs(self.canvas)
+
+        path = QPainterPath()
+        path.moveTo(arrow_pt)
+        path.lineTo(shoulder)
+
+        d = QLineF(shoulder, arrow_pt)
+        if d.length() < 1e-6:
+            return
+        angle = math.atan2(d.dy(), d.dx())
+        al = self._ARROW_LEN * gs
+        ah = self._ARROW_HALF * gs
+        tip = arrow_pt
+        left = QPointF(tip.x() - al * math.cos(angle) - ah * math.sin(angle),
+                       tip.y() - al * math.sin(angle) + ah * math.cos(angle))
+        right = QPointF(tip.x() - al * math.cos(angle) + ah * math.sin(angle),
+                        tip.y() - al * math.sin(angle) - ah * math.cos(angle))
+        path.moveTo(tip)
+        path.lineTo(left)
+        path.lineTo(right)
+        path.closeSubpath()
+
+        landing_dir = 1.0 if shoulder.x() >= arrow_pt.x() else -1.0
+        landing_end = QPointF(shoulder.x() + landing_dir * self._LANDING * gs, shoulder.y())
+        path.moveTo(shoulder)
+        path.lineTo(landing_end)
+
+        pen = QPen(QColor("#3C3C3C"))
+        pen.setWidthF(0.5)
+        pen.setCosmetic(True)
+
+        item = QGraphicsPathItem(path)
+        item.setPen(pen)
+        item.setBrush(QBrush(QColor("#3C3C3C")))
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "leader")
+
+        txt = QGraphicsTextItem(text, item)
+        txt.setFont(_load_vg5000(10))
+        txt.setDefaultTextColor(QColor("#3C3C3C"))
+        txt.setPos(shoulder.x() + (2 if landing_dir > 0 else -txt.boundingRect().width() - 2),
+                   shoulder.y() - txt.boundingRect().height() - 1)
+
+        self.canvas.add_item(item)
+        self.reset()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase == 1 and len(self._pts) == 1 and self._cur is not None:
+            painter.setPen(self._preview_pen)
+            painter.drawLine(QLineF(self._pts[0], self._cur))
