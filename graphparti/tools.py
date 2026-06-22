@@ -3026,3 +3026,101 @@ class BreakTool(Tool):
             return QLineF(p, a).length()
         t = max(0, min(1, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / lsq))
         return QLineF(p, QPointF(a.x() + t * dx, a.y() + t * dy)).length()
+
+
+# ═══════════════════════════════════════════════════════════ polyline edit
+class PEditTool(Tool):
+    """Select a path → show vertex handles. Drag = move vertex."""
+    name = "pedit"
+
+    def reset(self) -> None:
+        self._target = None
+        self._handles = []
+        self._dragging_idx = -1
+        self._drag_start = None
+
+    def activate(self) -> None:
+        self.reset()
+        selected = [i for i in self.canvas.scene().selectedItems()
+                    if isinstance(i, QGraphicsPathItem)]
+        if selected:
+            self._target = selected[0]
+            self._build_handles()
+
+    def deactivate(self) -> None:
+        self.reset()
+
+    def _build_handles(self) -> None:
+        if self._target is None:
+            return
+        path = self._target.path()
+        self._handles = []
+        for i in range(path.elementCount()):
+            el = path.elementAt(i)
+            pt = self._target.mapToScene(QPointF(el.x, el.y))
+            self._handles.append(pt)
+
+    def on_press(self, p: QPointF) -> None:
+        if self._target is None:
+            item = self.canvas.pick_item(p)
+            if isinstance(item, QGraphicsPathItem):
+                self._target = item
+                self._build_handles()
+            return
+
+        gs = _gs(self.canvas)
+        for i, hp in enumerate(self._handles):
+            if QLineF(p, hp).length() < gs * 0.5:
+                self._dragging_idx = i
+                self._drag_start = QPointF(hp)
+                return
+
+    def on_move(self, p: QPointF) -> None:
+        if self._dragging_idx >= 0:
+            self._handles[self._dragging_idx] = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        if self._dragging_idx >= 0:
+            self._drag_vertex(self._dragging_idx, QPointF(p))
+            self._dragging_idx = -1
+            self._drag_start = None
+
+    def _drag_vertex(self, idx: int, new_pos: QPointF) -> None:
+        if self._target is None:
+            return
+        old_path = QPainterPath(self._target.path())
+        new_path = QPainterPath()
+        src = self._target.path()
+        local_pos = self._target.mapFromScene(new_pos)
+        for i in range(src.elementCount()):
+            el = src.elementAt(i)
+            pt = QPointF(local_pos.x(), local_pos.y()) if i == idx else QPointF(el.x, el.y)
+            if i == 0:
+                new_path.moveTo(pt)
+            else:
+                new_path.lineTo(pt)
+
+        us = self.canvas.undo_stack
+        if us:
+            from .commands import ReshapeCommand
+            us.push(ReshapeCommand(self._target, old_path, new_path))
+        else:
+            self._target.setPath(new_path)
+        self._build_handles()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if not self._handles:
+            return
+        handle_pen = QPen(QColor("#2464E5"))
+        handle_pen.setCosmetic(True)
+        handle_pen.setWidthF(2.0)
+        gs = _gs(self.canvas)
+        r = gs * 0.2
+        for i, hp in enumerate(self._handles):
+            if i == self._dragging_idx:
+                painter.setPen(QPen(QColor("#C1140C")))
+                painter.setBrush(QBrush(QColor("#C1140C")))
+            else:
+                painter.setPen(handle_pen)
+                painter.setBrush(QBrush(QColor("#2464E5")))
+            painter.drawEllipse(hp, r, r)

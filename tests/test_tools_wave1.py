@@ -306,3 +306,33 @@ def test_break_splits_line_at_point(canvas_env):
 
     lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
     assert len(lines) == 2, f"Expected 2 lines after break, got {len(lines)}"
+
+
+def test_pedit_moves_vertex(canvas_env):
+    from PySide6.QtGui import QPainterPath
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import PEditTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    path = QPainterPath()
+    path.moveTo(0, 0)
+    path.lineTo(60, 0)
+    path.lineTo(60, 60)
+    item = QGraphicsPathItem(path)
+    item.setPen(make_pen("#3C3C3C", 1.0))
+    item.setFlag(item.GraphicsItemFlag.ItemIsSelectable, True)
+    item.setData(0, {"zip": "", "note": ""})
+    view.add_item(item)
+    item.setSelected(True)
+
+    tool = PEditTool(view)
+    tool.activate()
+
+    assert len(tool._handles) == 3, f"Expected 3 handles, got {len(tool._handles)}"
+
+    tool._drag_vertex(1, QPointF(80, 0))
+
+    new_path = item.path()
+    el = new_path.elementAt(1)
+    assert abs(el.x - 80) < 1, f"Expected vertex 1 x=80, got {el.x}"

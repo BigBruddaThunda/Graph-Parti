@@ -19,7 +19,7 @@ from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, FilletTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
-    PaintTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
+    PaintTool, PEditTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     TrimTool, WordTextTool,
 )
 
@@ -272,6 +272,7 @@ class CanvasWidget(QWidget):
             "trim": TrimTool(self.view),
             "offset": OffsetTool(self.view),
             "paint": PaintTool(self.view),
+            "pedit": PEditTool(self.view),
             "word": WordTextTool(self.view),
             "cell": CellTextTool(self.view),
             "extend": ExtendTool(self.view),
@@ -452,6 +453,7 @@ class CanvasWidget(QWidget):
             ("mirror", "Mirror", "M"),
             ("scale", "Scale", "S"),
             ("offset", "Offset", "O"), ("paint", "Paint", "B"),
+            ("pedit", "PEdit", ""),
             ("word", "Word", "A"), ("cell", "Cell", "G"),
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
