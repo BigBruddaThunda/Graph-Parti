@@ -17,8 +17,9 @@ from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
     ArcTool, CellTextTool, CircleTool, CopyTool, DivideTool, EllipseTool,
-    ExtendTool, LineTool, MirrorTool, OffsetTool, PaintTool, PolylineTool,
-    RectTool, RotateTool, ScaleTool, SelectTool, TrimTool, WordTextTool,
+    EyedropperTool, ExtendTool, LineTool, MirrorTool, OffsetTool, PaintTool,
+    PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool, TrimTool,
+    WordTextTool,
 )
 
 _SCENE_HALF = 100_000
@@ -280,6 +281,7 @@ class CanvasWidget(QWidget):
             "ellipse": EllipseTool(self.view),
             "arc": ArcTool(self.view),
             "copy": CopyTool(self.view),
+            "eyedropper": EyedropperTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -441,6 +443,7 @@ class CanvasWidget(QWidget):
             ("offset", "Offset", "O"), ("paint", "Paint", "B"),
             ("word", "Word", "A"), ("cell", "Cell", "G"),
             ("copy", "Copy", ""),
+            ("eyedropper", "Pick", "I"),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)

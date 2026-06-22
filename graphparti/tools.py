@@ -2195,3 +2195,35 @@ def _item_from_blueprint(bp, offset: QPointF):
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         item.setData(0, dict(bp[3]) if bp[3] else {"zip": "", "note": ""})
     return item
+
+
+# ═══════════════════════════════════════════════════════════ eyedropper
+class EyedropperTool(Tool):
+    """Click to sample color. Left-click on a fill → set fill color.
+    Left-click on geometry → set stroke color."""
+    name = "eyedropper"
+
+    def on_press(self, p: QPointF) -> None:
+        for item in self.canvas.scene().items(p):
+            # Cell fills: sample the fill color
+            if item.data(1) == "cell_fill":
+                if hasattr(item, 'brush') and callable(getattr(item, 'brush', None)):
+                    b = item.brush()
+                    if b.style() != Qt.BrushStyle.NoBrush:
+                        self.canvas.set_fill(b.color().name())
+                        return
+                if isinstance(item, QGraphicsPixmapItem):
+                    local = item.mapFromScene(p)
+                    pm = item.pixmap()
+                    ix = max(0, min(int(local.x()), pm.width() - 1))
+                    iy = max(0, min(int(local.y()), pm.height() - 1))
+                    c = pm.toImage().pixelColor(ix, iy)
+                    if c.alpha() > 0:
+                        self.canvas.set_fill(c.name())
+                    return
+            # Geometry: sample the stroke color
+            if hasattr(item, 'pen') and callable(getattr(item, 'pen', None)):
+                pen = item.pen()
+                if pen.style() != Qt.PenStyle.NoPen:
+                    self.canvas.set_stroke(pen.color().name())
+                    return
