@@ -3768,3 +3768,65 @@ class MeasureTool(Tool):
             d = QLineF(self._pts[0], self._cur).length() / gs
             if d > 0.1:
                 _draw_dim_label(painter, self._cur, _dim_text(d))
+
+
+# ═══════════════════════════════════════════════════════════ perspective
+class PerspectiveTool(Tool):
+    """Place vanishing points. Guide rays radiate from each VP."""
+    name = "perspective"
+
+    def reset(self) -> None:
+        if not hasattr(self, '_vanishing_points'):
+            self._vanishing_points = []
+        self._cur = None
+
+    def activate(self) -> None:
+        self.reset()
+
+    def on_press(self, p: QPointF) -> None:
+        self._vanishing_points.append(QPointF(p))
+        if len(self._vanishing_points) > 3:
+            self._vanishing_points.pop(0)
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def clear_vps(self) -> None:
+        self._vanishing_points = []
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if not self._vanishing_points:
+            return
+        gs = _gs(self.canvas)
+        vp_pen = QPen(QColor("#9255E5"))
+        vp_pen.setCosmetic(True)
+        vp_pen.setWidthF(1.5)
+
+        ray_pen = QPen(QColor("#9255E5"))
+        ray_pen.setCosmetic(True)
+        ray_pen.setWidthF(0.3)
+        ray_pen.setStyle(Qt.PenStyle.DotLine)
+
+        extent = 200 * gs
+        n_rays = 24
+
+        for vp in self._vanishing_points:
+            painter.setPen(vp_pen)
+            painter.drawLine(QLineF(vp.x() - gs, vp.y(), vp.x() + gs, vp.y()))
+            painter.drawLine(QLineF(vp.x(), vp.y() - gs, vp.x(), vp.y() + gs))
+
+            painter.setPen(ray_pen)
+            for i in range(n_rays):
+                angle = 2.0 * math.pi * i / n_rays
+                end = QPointF(vp.x() + extent * math.cos(angle),
+                              vp.y() + extent * math.sin(angle))
+                painter.drawLine(QLineF(vp, end))
+
+        if self._cur is not None and self._vanishing_points:
+            nearest = min(self._vanishing_points,
+                         key=lambda v: QLineF(v, self._cur).length())
+            painter.setPen(vp_pen)
+            painter.drawLine(QLineF(nearest, self._cur))

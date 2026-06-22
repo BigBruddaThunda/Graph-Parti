@@ -536,3 +536,16 @@ def test_line_weight_applies(canvas_env):
 
     set_line_weight(line, "bold")
     assert abs(line.pen().widthF() - LINE_WEIGHTS["bold"]) < 0.01
+
+
+def test_perspective_assistant_stores_vps(canvas_env):
+    from graphparti.tools import PerspectiveTool
+
+    view, scene, undo = canvas_env
+
+    tool = PerspectiveTool(view)
+    tool.on_press(QPointF(300, -200))
+    tool.on_press(QPointF(-300, -200))
+
+    assert len(tool._vanishing_points) == 2
+    assert tool._vanishing_points[0] == QPointF(300, -200)
