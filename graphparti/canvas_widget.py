@@ -55,6 +55,81 @@ _LINE_PALETTE = [
     "#8B4513", "#006400", "#191970", "#800080",
 ]
 
+# Maps each SCL glyph to the tools accessible from its drawer (right-click popup).
+TOOL_DRAWERS: dict[str, list[tuple[str, str]]] = {
+    "📍": [("xline", "Construction Line"), ("polygon", "Polygon"), ("perspective", "Perspective VP")],
+    "🧲": [("eyedropper", "Eyedropper"), ("matchprop", "Match Properties"), ("block_save", "Save Block")],
+    "🤌": [("line", "Line"), ("rect", "Rect"), ("circle", "Circle"), ("polyline", "Polyline"),
+           ("arc", "Arc"), ("ellipse", "Ellipse"), ("spline", "Spline")],
+    "👀": [("select", "Select"), ("measure", "Measure")],
+    "🧸": [("copy", "Copy"), ("block_insert", "Insert Block"), ("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
+    "🥨": [("extend", "Extend"), ("stretch", "Stretch"), ("scale", "Scale"), ("offset", "Offset")],
+    "🦢": [("join", "Join"), ("fillet", "Fillet"), ("chamfer", "Chamfer"), ("pedit", "Edit Polyline")],
+    "🦉": [("dim_linear", "Dimension"), ("leader", "Leader"), ("measure", "Measure")],
+    "🪵": [("hatch", "Hatch"), ("paint", "Paint")],
+    "✒️": [("word", "Word Text"), ("cell", "Cell Text")],
+    "🔨": [("trim", "Trim"), ("break_at", "Break"), ("divide", "Divide")],
+    "🌹": [],  # line types/weights cycle buttons handle this
+    "🪞": [("mirror", "Mirror")],
+    "🛠": [("offset", "Offset"), ("divide", "Divide"), ("rotate", "Rotate")],
+    "🧩": [("join", "Join"), ("pedit", "Edit Polyline")],
+    "🏗": [("xline", "Construction Line"), ("perspective", "Perspective VP")],
+    "🧬": [("spline", "Spline")],
+    "🚂": [("copy", "Copy"), ("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
+    "🔠": [("word", "Word Text"), ("cell", "Cell Text")],
+    "🌋": [],  # explode/overkill are keyboard shortcuts, not toolbar tools
+    "🪜": [("scale", "Scale")],
+    "🎱": [("paint", "Paint"), ("eyedropper", "Eyedropper")],
+    "🔢": [("dim_linear", "Dimension")],
+    "🧈": [("fillet", "Fillet"), ("chamfer", "Chamfer"), ("spline", "Spline")],
+    "🎼": [("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
+    "🏟": [("array_rect", "Array Rect"), ("copy", "Copy"), ("mirror", "Mirror"), ("scale", "Scale"), ("rotate", "Rotate")],
+    "🐂": [("line", "Line"), ("select", "Select"), ("paint", "Paint")],
+}
+
+# Aliases for the Alt-key command input.  Keys are what the user types;
+# values are the canonical tool key used in self._tools / self._tool_actions.
+TOOL_COMMANDS: dict[str, str] = {
+    "line": "line", "l": "line",
+    "rect": "rect", "r": "rect", "rectangle": "rect",
+    "circle": "circle", "c": "circle",
+    "polyline": "polyline", "p": "polyline", "pline": "polyline",
+    "arc": "arc", "a": "arc",
+    "ellipse": "ellipse",
+    "polygon": "polygon",
+    "spline": "spline", "curve": "spline", "bezier": "spline",
+    "select": "select", "v": "select",
+    "trim": "trim", "t": "trim",
+    "extend": "extend",
+    "offset": "offset", "o": "offset",
+    "divide": "divide", "d": "divide",
+    "rotate": "rotate",
+    "mirror": "mirror", "m": "mirror",
+    "scale": "scale", "s": "scale",
+    "paint": "paint", "b": "paint", "fill": "paint",
+    "word": "word", "text": "word",
+    "cell": "cell",
+    "copy": "copy",
+    "eyedropper": "eyedropper", "pick": "eyedropper", "sample": "eyedropper",
+    "xline": "xline", "construction": "xline",
+    "matchprop": "matchprop", "match": "matchprop",
+    "hatch": "hatch", "h": "hatch",
+    "dim": "dim_linear", "dimension": "dim_linear",
+    "leader": "leader",
+    "measure": "measure",
+    "join": "join", "j": "join",
+    "fillet": "fillet", "f": "fillet",
+    "chamfer": "chamfer",
+    "break": "break_at",
+    "pedit": "pedit",
+    "stretch": "stretch",
+    "perspective": "perspective", "vp": "perspective",
+    "blocksave": "block_save", "bsave": "block_save",
+    "blockinsert": "block_insert", "binsert": "block_insert", "insert": "block_insert",
+    "array": "array_rect", "arrayrect": "array_rect",
+    "arraypolar": "array_polar",
+}
+
 
 class SwatchButton(QToolButton):
     """One color swatch: left-click = select, right-click = open picker."""
@@ -132,6 +207,7 @@ class DraggableEmojiButton(QToolButton):
     """Emoji button: click = insert text, drag = place a book onto the canvas."""
     emoji_clicked = Signal(str)
     emoji_dragged = Signal(str)
+    emoji_right_clicked = Signal(str)
 
     def __init__(self, glyph: str, parent=None) -> None:
         super().__init__(parent)
@@ -145,6 +221,10 @@ class DraggableEmojiButton(QToolButton):
         )
 
     def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            self.emoji_right_clicked.emit(self._glyph)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start = event.position().toPoint()
         super().mousePressEvent(event)
@@ -365,6 +445,7 @@ class CanvasWidget(QWidget):
             btn.setFixedSize(20, 20)
             btn.setStyleSheet(_btn_ss)
             btn.emoji_clicked.connect(self._on_emoji_band_click)
+            btn.emoji_right_clicked.connect(self._on_emoji_right_click)
             scl_lay.addWidget(btn)
         # 62nd: ± symbol
         pm_btn = DraggableEmojiButton("±")
@@ -378,6 +459,19 @@ class CanvasWidget(QWidget):
         self._text_composer.setMinimumWidth(120)
         scl_lay.addWidget(self._text_composer, 1)
         layout.addWidget(scl_band)
+
+        # ── Alt-key command input ──
+        self._cmd_input = QLineEdit(self)
+        self._cmd_input.setFixedHeight(24)
+        self._cmd_input.setPlaceholderText("Type tool name...")
+        self._cmd_input.setStyleSheet(
+            "background:#1a1a1a; color:#fff; border:1px solid #9255E5;"
+            " padding:2px 8px; font-size:12px; font-family:monospace;"
+        )
+        self._cmd_input.setVisible(False)
+        self._cmd_input.returnPressed.connect(self._on_cmd_enter)
+        self._cmd_input.installEventFilter(self)
+        layout.addWidget(self._cmd_input)
 
         # ── Signals + init ──
         self._last_coord = "X 0  Y 0"
@@ -665,6 +759,78 @@ class CanvasWidget(QWidget):
     def _on_emoji_band_click(self, glyph: str) -> None:
         """Bottom-band emoji click → insert into text composer (63rd box)."""
         self._text_composer.insert_glyph(glyph)
+
+    def _on_emoji_right_click(self, glyph: str) -> None:
+        """Right-click on SCL band glyph → popup menu of tools in that drawer."""
+        drawer = TOOL_DRAWERS.get(glyph)
+        if not drawer:
+            return
+        menu = QMenu(self)
+        for tool_key, label in drawer:
+            if tool_key in self._tools:
+                act = menu.addAction(label)
+                act.triggered.connect(
+                    lambda _ch=False, k=tool_key: self._activate_drawer_tool(k)
+                )
+        if menu.actions():
+            btn = self.sender()
+            if btn:
+                menu.popup(btn.mapToGlobal(btn.rect().topLeft()))
+
+    def _activate_drawer_tool(self, key: str) -> None:
+        """Activate a tool chosen from a right-click drawer popup."""
+        if key in self._tool_actions:
+            self._tool_actions[key].setChecked(True)
+        self._activate_tool(key)
+
+    # ─────────────────────────────────────────────────── Alt command input
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Alt and not event.isAutoRepeat():
+            if not self._cmd_input.isVisible():
+                self._cmd_input.setVisible(True)
+                self._cmd_input.setFocus()
+                self._cmd_input.clear()
+                event.accept()
+                return
+        if event.key() == Qt.Key.Key_Escape and self._cmd_input.isVisible():
+            self._cmd_input.setVisible(False)
+            self.view.setFocus()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def eventFilter(self, obj, event) -> bool:
+        """Dismiss command input on Escape when it has focus."""
+        from PySide6.QtCore import QEvent
+        if obj is self._cmd_input and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self._cmd_input.setVisible(False)
+                self.view.setFocus()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _on_cmd_enter(self) -> None:
+        """Execute the command typed into the Alt command input."""
+        text = self._cmd_input.text().strip().lower()
+        self._cmd_input.setVisible(False)
+        self.view.setFocus()
+        if not text:
+            return
+        # Exact match first
+        tool_key = TOOL_COMMANDS.get(text)
+        if tool_key and tool_key in self._tools:
+            if tool_key in self._tool_actions:
+                self._tool_actions[tool_key].setChecked(True)
+            self._activate_tool(tool_key)
+            return
+        # Fuzzy: find first command that starts with the typed text
+        for cmd, key in TOOL_COMMANDS.items():
+            if cmd.startswith(text) and key in self._tools:
+                if key in self._tool_actions:
+                    self._tool_actions[key].setChecked(True)
+                self._activate_tool(key)
+                return
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)
