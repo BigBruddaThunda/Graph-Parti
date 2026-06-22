@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, ArrayPolarTool, ArrayRectTool, CellTextTool, CircleTool, ConstructionLineTool,
+    ArcTool, ArrayPolarTool, ArrayRectTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, FilletTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
@@ -286,6 +286,7 @@ class CanvasWidget(QWidget):
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "fillet": FilletTool(self.view),
+            "chamfer": ChamferTool(self.view),
             "join": JoinTool(self.view),
             "xline": ConstructionLineTool(self.view),
             "matchprop": MatchPropTool(self.view),
@@ -454,6 +455,7 @@ class CanvasWidget(QWidget):
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
             ("fillet", "Fillet", ""),
+            ("chamfer", "Chamfer", ""),
             ("join", "Join", "J"),
             ("xline", "XLine", ""),
             ("matchprop", "Match", ""),

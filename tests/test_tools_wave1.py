@@ -256,3 +256,33 @@ def test_fillet_creates_arc_between_lines(canvas_env):
 
     arcs = [i for i in scene.items() if isinstance(i, QGraphicsPathItem)]
     assert len(arcs) >= 1, "Expected at least 1 arc path from fillet"
+
+
+def test_chamfer_creates_bevel(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import ChamferTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    h = QGraphicsLineItem(QLineF(QPointF(-100, 0), QPointF(0, 0)))
+    h.setPen(make_pen("#3C3C3C", 1.0))
+    h.setFlag(h.GraphicsItemFlag.ItemIsSelectable, True)
+    h.setData(0, {"zip": "", "note": ""})
+    view.add_item(h)
+
+    v = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(0, -100)))
+    v.setPen(make_pen("#3C3C3C", 1.0))
+    v.setFlag(v.GraphicsItemFlag.ItemIsSelectable, True)
+    v.setData(0, {"zip": "", "note": ""})
+    view.add_item(v)
+
+    tool = ChamferTool(view)
+    tool._dist1 = 1.0
+    tool._dist2 = 1.0
+
+    tool.on_press(QPointF(-50, 0))
+    tool.on_press(QPointF(0, -50))
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    assert len(lines) == 3, f"Expected 3 lines after chamfer, got {len(lines)}"

@@ -2793,3 +2793,112 @@ class FilletTool(Tool):
 
         us.endMacro()
         self.canvas.viewport().update()
+
+
+# ═══════════════════════════════════════════════════════════ chamfer
+class ChamferTool(Tool):
+    """Click two lines → trim and insert straight bevel at set distances."""
+    name = "chamfer"
+
+    def reset(self) -> None:
+        self._first_item = None
+        self._first_pick = None
+        self._phase = 0
+        if not hasattr(self, '_dist1'):
+            self._dist1 = 1.0
+        if not hasattr(self, '_dist2'):
+            self._dist2 = 1.0
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def set_dimension(self, value: float) -> None:
+        self._dist1 = value
+        self._dist2 = value
+
+    def on_press(self, p: QPointF) -> None:
+        item = self.canvas.pick_item(p)
+        if item is None or not isinstance(item, QGraphicsLineItem):
+            return
+        if self._phase == 0:
+            self._first_item = item
+            self._first_pick = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._apply_chamfer(self._first_item, item,
+                                self._first_pick, QPointF(p))
+            self.reset()
+
+    def _apply_chamfer(self, item_a, item_b, pick_a, pick_b) -> None:
+        gs = _gs(self.canvas)
+        d1 = self._dist1 * gs
+        d2 = self._dist2 * gs
+
+        seg_a = QLineF(item_a.mapToScene(item_a.line().p1()),
+                       item_a.mapToScene(item_a.line().p2()))
+        seg_b = QLineF(item_b.mapToScene(item_b.line().p1()),
+                       item_b.mapToScene(item_b.line().p2()))
+
+        itype, ix_pt = seg_a.intersects(seg_b)
+        if itype == QLineF.IntersectionType.NoIntersection:
+            return
+
+        us = self.canvas.undo_stack
+        doc = self.canvas.document
+        if us is None or doc is None:
+            return
+
+        len_a = seg_a.length()
+        len_b = seg_b.length()
+        if len_a < 1e-6 or len_b < 1e-6:
+            return
+        ua_x, ua_y = seg_a.dx() / len_a, seg_a.dy() / len_a
+        ub_x, ub_y = seg_b.dx() / len_b, seg_b.dy() / len_b
+
+        da1 = QLineF(pick_a, seg_a.p1()).length()
+        da2 = QLineF(pick_a, seg_a.p2()).length()
+        if da1 > da2:
+            dir_a_x, dir_a_y = -ua_x, -ua_y
+        else:
+            dir_a_x, dir_a_y = ua_x, ua_y
+
+        db1 = QLineF(pick_b, seg_b.p1()).length()
+        db2 = QLineF(pick_b, seg_b.p2()).length()
+        if db1 > db2:
+            dir_b_x, dir_b_y = -ub_x, -ub_y
+        else:
+            dir_b_x, dir_b_y = ub_x, ub_y
+
+        cp_a = QPointF(ix_pt.x() + dir_a_x * d1, ix_pt.y() + dir_a_y * d1)
+        cp_b = QPointF(ix_pt.x() + dir_b_x * d2, ix_pt.y() + dir_b_y * d2)
+
+        us.beginMacro("Chamfer")
+        from .commands import ReshapeCommand, AddItemCommand
+
+        old_a = QLineF(item_a.line())
+        if da1 > da2:
+            new_a = QLineF(seg_a.p1(), cp_a)
+        else:
+            new_a = QLineF(cp_a, seg_a.p2())
+        us.push(ReshapeCommand(item_a, old_a,
+                QLineF(item_a.mapFromScene(new_a.p1()), item_a.mapFromScene(new_a.p2()))))
+
+        old_b = QLineF(item_b.line())
+        if db1 > db2:
+            new_b = QLineF(seg_b.p1(), cp_b)
+        else:
+            new_b = QLineF(cp_b, seg_b.p2())
+        us.push(ReshapeCommand(item_b, old_b,
+                QLineF(item_b.mapFromScene(new_b.p1()), item_b.mapFromScene(new_b.p2()))))
+
+        bevel = QGraphicsLineItem(QLineF(cp_a, cp_b))
+        bevel.setPen(item_a.pen())
+        bevel.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        bevel.setData(0, {"zip": "", "note": ""})
+        layer = doc.layer_for(item_a)
+        if layer:
+            us.push(AddItemCommand(layer, bevel))
+
+        us.endMacro()
+        self.canvas.viewport().update()
