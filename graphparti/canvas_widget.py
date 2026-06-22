@@ -18,9 +18,9 @@ from .document import Document
 from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, CellTextTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
-    EyedropperTool, ExtendTool, LineTool, MatchPropTool, MirrorTool, OffsetTool, PaintTool,
-    PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool, TrimTool,
-    WordTextTool,
+    EyedropperTool, ExtendTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
+    PaintTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
+    TrimTool, WordTextTool,
 )
 
 _SCENE_HALF = 100_000
@@ -285,6 +285,7 @@ class CanvasWidget(QWidget):
             "array_polar": ArrayPolarTool(self.view),
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
+            "join": JoinTool(self.view),
             "xline": ConstructionLineTool(self.view),
             "matchprop": MatchPropTool(self.view),
             "polygon": PolygonTool(self.view),
@@ -451,6 +452,7 @@ class CanvasWidget(QWidget):
             ("word", "Word", "A"), ("cell", "Cell", "G"),
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
+            ("join", "Join", "J"),
             ("xline", "XLine", ""),
             ("matchprop", "Match", ""),
             ("polygon", "Polygon", ""),

@@ -195,3 +195,34 @@ def test_array_polar_creates_ring(canvas_env):
     lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
     # 4 total (original + 3 copies at 90 degree intervals)
     assert len(lines) == 4, f"Expected 4 lines, got {len(lines)}"
+
+
+def test_join_merges_two_lines(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsPathItem
+    from graphparti.tools import JoinTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    l1 = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(60, 0)))
+    l1.setPen(make_pen("#3C3C3C", 1.0))
+    l1.setFlag(l1.GraphicsItemFlag.ItemIsSelectable, True)
+    l1.setData(0, {"zip": "", "note": ""})
+    view.add_item(l1)
+
+    l2 = QGraphicsLineItem(QLineF(QPointF(60, 0), QPointF(120, 0)))
+    l2.setPen(make_pen("#3C3C3C", 1.0))
+    l2.setFlag(l2.GraphicsItemFlag.ItemIsSelectable, True)
+    l2.setData(0, {"zip": "", "note": ""})
+    view.add_item(l2)
+
+    l1.setSelected(True)
+    l2.setSelected(True)
+
+    tool = JoinTool(view)
+    tool.on_press(QPointF(60, 0))
+
+    paths = [i for i in scene.items() if isinstance(i, QGraphicsPathItem)]
+    assert len(paths) == 1, f"Expected 1 joined path, got {len(paths)}"
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    assert len(lines) == 0, f"Expected 0 remaining lines, got {len(lines)}"

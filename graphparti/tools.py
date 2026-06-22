@@ -2541,3 +2541,97 @@ def _rotate_blueprint(bp, center: QPointF, cos_a: float, sin_a: float):
                 sp.lineTo(pt)
         return ("path", sp, bp[2], bp[3], bp[4] if len(bp) > 4 else None)
     return None
+
+
+# ═══════════════════════════════════════════════════════════ join
+class JoinTool(Tool):
+    """Join selected line segments into a single polyline/path.
+    Chains endpoints that are within tolerance using greedy nearest-neighbor."""
+    name = "join"
+
+    def on_press(self, p: QPointF) -> None:
+        selected = self.canvas.scene().selectedItems()
+        selected = [it for it in selected
+                    if isinstance(it, (QGraphicsLineItem, QGraphicsPathItem))]
+        if len(selected) < 2:
+            return
+
+        all_segs = []
+        for it in selected:
+            all_segs.extend(_item_segments(it))
+        if len(all_segs) < 2:
+            return
+
+        tolerance = _gs(self.canvas) * 0.15
+        chain = self._chain_segments(all_segs, tolerance)
+        if chain is None or len(chain) < 2:
+            return
+
+        path = QPainterPath()
+        path.moveTo(chain[0])
+        for pt in chain[1:]:
+            path.lineTo(pt)
+
+        pen = selected[0].pen() if hasattr(selected[0], 'pen') else make_pen("#3C3C3C", 1.0)
+        meta = selected[0].data(0) or {"zip": "", "note": ""}
+
+        us = self.canvas.undo_stack
+        doc = self.canvas.document
+        if us is None or doc is None:
+            return
+        layer = doc.layer_for(selected[0])
+        if layer is None:
+            return
+
+        us.beginMacro("Join")
+        from .commands import DeleteItemsCommand, AddItemCommand
+        us.push(DeleteItemsCommand(doc, selected))
+        joined = QGraphicsPathItem(path)
+        joined.setPen(pen)
+        joined.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        joined.setData(0, dict(meta))
+        us.push(AddItemCommand(layer, joined))
+        us.endMacro()
+
+    @staticmethod
+    def _chain_segments(segs: list[QLineF], tol: float) -> list[QPointF] | None:
+        if not segs:
+            return None
+        used = [False] * len(segs)
+        used[0] = True
+        chain = [segs[0].p1(), segs[0].p2()]
+
+        for _ in range(len(segs) - 1):
+            tail = chain[-1]
+            head = chain[0]
+            best_idx = -1
+            best_dist = tol
+            best_end = 0
+            best_flip = False
+
+            for i, seg in enumerate(segs):
+                if used[i]:
+                    continue
+                d1 = QLineF(tail, seg.p1()).length()
+                d2 = QLineF(tail, seg.p2()).length()
+                if d1 < best_dist:
+                    best_dist, best_idx, best_end, best_flip = d1, i, 0, False
+                if d2 < best_dist:
+                    best_dist, best_idx, best_end, best_flip = d2, i, 0, True
+                d3 = QLineF(head, seg.p2()).length()
+                d4 = QLineF(head, seg.p1()).length()
+                if d3 < best_dist:
+                    best_dist, best_idx, best_end, best_flip = d3, i, 1, False
+                if d4 < best_dist:
+                    best_dist, best_idx, best_end, best_flip = d4, i, 1, True
+
+            if best_idx < 0:
+                break
+            used[best_idx] = True
+            seg = segs[best_idx]
+            if best_end == 0:
+                chain.append(seg.p2() if not best_flip else seg.p1())
+            else:
+                chain.insert(0, seg.p1() if not best_flip else seg.p2())
+
+        return chain
