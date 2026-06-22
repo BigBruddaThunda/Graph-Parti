@@ -2902,3 +2902,127 @@ class ChamferTool(Tool):
 
         us.endMacro()
         self.canvas.viewport().update()
+
+
+# ═══════════════════════════════════════════════════════════ break
+class BreakTool(Tool):
+    """Click on a line/path → split at the nearest point into two items."""
+    name = "break_at"
+
+    def on_press(self, p: QPointF) -> None:
+        item = self.canvas.pick_item(p)
+        if item is None:
+            return
+        doc = self.canvas.document
+        us = self.canvas.undo_stack
+        if doc is None or us is None:
+            return
+
+        if isinstance(item, QGraphicsLineItem):
+            self._break_line(item, p, doc, us)
+        elif isinstance(item, QGraphicsPathItem):
+            self._break_path(item, p, doc, us)
+
+    def _break_line(self, item, click, doc, us) -> None:
+        ln = item.line()
+        p1 = item.mapToScene(ln.p1())
+        p2 = item.mapToScene(ln.p2())
+        dx, dy = p2.x() - p1.x(), p2.y() - p1.y()
+        lsq = dx * dx + dy * dy
+        if lsq < 1e-12:
+            return
+        t = max(0.01, min(0.99,
+            ((click.x() - p1.x()) * dx + (click.y() - p1.y()) * dy) / lsq))
+        split = QPointF(p1.x() + t * dx, p1.y() + t * dy)
+
+        pen = item.pen()
+        meta = item.data(0) or {"zip": "", "note": ""}
+        layer = doc.layer_for(item)
+        if layer is None:
+            return
+
+        us.beginMacro("Break")
+        from .commands import DeleteItemsCommand, AddItemCommand
+        us.push(DeleteItemsCommand(doc, [item]))
+
+        l1 = QGraphicsLineItem(QLineF(p1, split))
+        l1.setPen(pen)
+        l1.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        l1.setData(0, dict(meta))
+        us.push(AddItemCommand(layer, l1))
+
+        l2 = QGraphicsLineItem(QLineF(split, p2))
+        l2.setPen(pen)
+        l2.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        l2.setData(0, dict(meta))
+        us.push(AddItemCommand(layer, l2))
+        us.endMacro()
+
+    def _break_path(self, item, click, doc, us) -> None:
+        segs = _item_segments(item)
+        if not segs:
+            return
+        best_i, best_d = 0, float('inf')
+        for i, seg in enumerate(segs):
+            d = self._pt_seg_dist(click, seg)
+            if d < best_d:
+                best_d, best_i = d, i
+
+        pen = item.pen()
+        meta = item.data(0) or {"zip": "", "note": ""}
+        layer = doc.layer_for(item)
+        if layer is None:
+            return
+
+        seg = segs[best_i]
+        dx = seg.p2().x() - seg.p1().x()
+        dy = seg.p2().y() - seg.p1().y()
+        lsq = dx * dx + dy * dy
+        if lsq < 1e-12:
+            return
+        t = max(0.01, min(0.99,
+            ((click.x() - seg.p1().x()) * dx +
+             (click.y() - seg.p1().y()) * dy) / lsq))
+        split = QPointF(seg.p1().x() + t * dx, seg.p1().y() + t * dy)
+
+        us.beginMacro("Break")
+        from .commands import DeleteItemsCommand, AddItemCommand
+        us.push(DeleteItemsCommand(doc, [item]))
+
+        # First half
+        if best_i > 0 or t > 0.01:
+            path1 = QPainterPath()
+            path1.moveTo(segs[0].p1())
+            for s in segs[:best_i]:
+                path1.lineTo(s.p2())
+            path1.lineTo(split)
+            p1_item = QGraphicsPathItem(path1)
+            p1_item.setPen(pen)
+            p1_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+            p1_item.setData(0, dict(meta))
+            us.push(AddItemCommand(layer, p1_item))
+
+        # Second half
+        if best_i < len(segs) - 1 or t < 0.99:
+            path2 = QPainterPath()
+            path2.moveTo(split)
+            path2.lineTo(seg.p2())
+            for s in segs[best_i + 1:]:
+                path2.lineTo(s.p2())
+            p2_item = QGraphicsPathItem(path2)
+            p2_item.setPen(pen)
+            p2_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+            p2_item.setData(0, dict(meta))
+            us.push(AddItemCommand(layer, p2_item))
+
+        us.endMacro()
+
+    @staticmethod
+    def _pt_seg_dist(p: QPointF, seg: QLineF) -> float:
+        a, b = seg.p1(), seg.p2()
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        lsq = dx * dx + dy * dy
+        if lsq < 1e-12:
+            return QLineF(p, a).length()
+        t = max(0, min(1, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / lsq))
+        return QLineF(p, QPointF(a.x() + t * dx, a.y() + t * dy)).length()

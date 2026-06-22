@@ -286,3 +286,23 @@ def test_chamfer_creates_bevel(canvas_env):
 
     lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
     assert len(lines) == 3, f"Expected 3 lines after chamfer, got {len(lines)}"
+
+
+def test_break_splits_line_at_point(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import BreakTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(100, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    line.setData(0, {"zip": "", "note": ""})
+    view.add_item(line)
+
+    tool = BreakTool(view)
+    tool.on_press(QPointF(50, 0))
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    assert len(lines) == 2, f"Expected 2 lines after break, got {len(lines)}"

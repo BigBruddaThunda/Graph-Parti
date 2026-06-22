@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, ArrayPolarTool, ArrayRectTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
+    ArcTool, ArrayPolarTool, ArrayRectTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, FilletTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
@@ -291,6 +291,7 @@ class CanvasWidget(QWidget):
             "xline": ConstructionLineTool(self.view),
             "matchprop": MatchPropTool(self.view),
             "polygon": PolygonTool(self.view),
+            "break_at": BreakTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -460,6 +461,7 @@ class CanvasWidget(QWidget):
             ("xline", "XLine", ""),
             ("matchprop", "Match", ""),
             ("polygon", "Polygon", ""),
+            ("break_at", "Break", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
