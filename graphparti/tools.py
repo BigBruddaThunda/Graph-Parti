@@ -3478,3 +3478,73 @@ class HatchTool(Tool):
         item.setData(0, {"zip": "", "note": ""})
         item.setData(1, "hatch_fill")
         self.canvas.add_item(item)
+
+
+# ═══════════════════════════════════════════════════════════ spline
+class SplineTool(Tool):
+    """Click to place points, double-click to finish. Catmull-Rom spline."""
+    name = "spline"
+
+    def reset(self) -> None:
+        self._points = []
+        self._drawing = False
+        self._cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._drawing
+
+    def on_press(self, p: QPointF) -> None:
+        self._points.append(QPointF(p))
+        self._drawing = True
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def on_double_click(self, p: QPointF) -> None:
+        if len(self._points) >= 2:
+            self._create_spline()
+        self.reset()
+
+    def _create_spline(self) -> None:
+        pts = self._points
+        path = QPainterPath()
+        path.moveTo(pts[0])
+
+        if len(pts) == 2:
+            path.lineTo(pts[1])
+        elif len(pts) == 3:
+            path.quadTo(pts[1], pts[2])
+        else:
+            # Catmull-Rom → cubic Bezier conversion
+            for i in range(len(pts) - 1):
+                p0 = pts[max(i - 1, 0)]
+                p1 = pts[i]
+                p2 = pts[min(i + 1, len(pts) - 1)]
+                p3 = pts[min(i + 2, len(pts) - 1)]
+                cp1 = QPointF(p1.x() + (p2.x() - p0.x()) / 6.0,
+                              p1.y() + (p2.y() - p0.y()) / 6.0)
+                cp2 = QPointF(p2.x() - (p3.x() - p1.x()) / 6.0,
+                              p2.y() - (p3.y() - p1.y()) / 6.0)
+                path.cubicTo(cp1, cp2, p2)
+
+        self._commit(QGraphicsPathItem(path))
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if not self._drawing or not self._points:
+            return
+        painter.setPen(self._preview_pen)
+        pts = list(self._points)
+        if self._cur is not None:
+            pts.append(self._cur)
+        if len(pts) < 2:
+            return
+        for a, b in zip(pts, pts[1:]):
+            painter.drawLine(QLineF(a, b))
+        gs = _gs(self.canvas)
+        r = gs * 0.15
+        for pt in self._points:
+            painter.drawEllipse(pt, r, r)

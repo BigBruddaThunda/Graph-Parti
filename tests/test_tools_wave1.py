@@ -416,3 +416,22 @@ def test_line_type_dashed(canvas_env):
 
     set_line_type(line, "continuous")
     assert line.pen().style() == Qt.PenStyle.SolidLine, "Expected SolidLine for continuous"
+
+
+def test_spline_creates_smooth_curve(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import SplineTool
+
+    view, scene, undo = canvas_env
+
+    tool = SplineTool(view)
+    tool.on_press(QPointF(0, 0))
+    tool.on_press(QPointF(40, -30))
+    tool.on_press(QPointF(80, 0))
+    tool.on_press(QPointF(120, -30))
+    tool.on_double_click(QPointF(120, -30))
+
+    paths = [i for i in scene.items() if isinstance(i, QGraphicsPathItem)]
+    assert len(paths) >= 1, "Expected at least 1 spline path"
+    path = paths[0].path()
+    assert path.elementCount() > 4, f"Expected cubic elements, got {path.elementCount()}"

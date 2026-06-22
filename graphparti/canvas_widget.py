@@ -20,7 +20,7 @@ from .tools import (
     CopyTool, DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
-    TrimTool, WordTextTool,
+    SplineTool, TrimTool, WordTextTool,
     set_line_type, LINE_TYPES,
 )
 
@@ -297,6 +297,7 @@ class CanvasWidget(QWidget):
             "matchprop": MatchPropTool(self.view),
             "polygon": PolygonTool(self.view),
             "break_at": BreakTool(self.view),
+            "spline": SplineTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -471,6 +472,7 @@ class CanvasWidget(QWidget):
             ("matchprop", "Match", ""),
             ("polygon", "Polygon", ""),
             ("break_at", "Break", ""),
+            ("spline", "Spline", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
