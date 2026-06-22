@@ -109,3 +109,26 @@ def test_matchprop_copies_pen_color(canvas_env):
     assert tgt.pen().color().name() == "#c1140c", (
         f"Expected target pen #c1140c, got {tgt.pen().color().name()}"
     )
+
+
+def test_polygon_creates_hexagon(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import PolygonTool
+
+    view, scene, undo = canvas_env
+
+    tool = PolygonTool(view)
+    tool._sides = 6  # hexagon
+
+    # Click center at origin, drag to radius = 3 grid cells = 60 scene units
+    tool.on_press(QPointF(0, 0))
+    tool.on_move(QPointF(60, 0))
+    tool.on_release(QPointF(60, 0))
+
+    paths = [i for i in scene.items() if isinstance(i, QGraphicsPathItem)]
+    assert len(paths) >= 1, "Expected at least 1 path item (hexagon)"
+    # A hexagon has 6 vertices → moveTo + 5 lineTo + closeSubpath element = 7 elements
+    path = paths[0].path()
+    assert path.elementCount() == 7, (
+        f"Expected 7 path elements for hexagon, got {path.elementCount()}"
+    )

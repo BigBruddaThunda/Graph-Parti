@@ -2326,3 +2326,81 @@ class MatchPropTool(Tool):
                 item.setPen(QPen(self._src_pen))
             if self._src_brush is not None and hasattr(item, 'setBrush'):
                 item.setBrush(QBrush(self._src_brush))
+
+
+# ═══════════════════════════════════════════════════════════ polygon
+class PolygonTool(Tool):
+    """Regular polygon: click center, drag radius. Sides adjustable (3-12, default 6)."""
+    name = "polygon"
+
+    def reset(self) -> None:
+        self._center = None
+        self._cur = None
+        self._drawing = False
+        self._dim_locked = False
+        if not hasattr(self, '_sides'):
+            self._sides = 6
+
+    @property
+    def in_progress(self) -> bool:
+        return self._drawing
+
+    def on_press(self, p: QPointF) -> None:
+        self._center = QPointF(p)
+        self._cur = QPointF(p)
+        self._drawing = True
+        self._dim_locked = False
+
+    def on_move(self, p: QPointF) -> None:
+        if self._drawing and not self._dim_locked:
+            self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        if not self._drawing:
+            return
+        self._drawing = False
+        end = self._cur if self._dim_locked else QPointF(p)
+        radius = QLineF(self._center, end).length()
+        if radius < MIN_DRAG:
+            self.reset()
+            return
+        angle_to_cursor = math.atan2(end.y() - self._center.y(),
+                                     end.x() - self._center.x())
+        path = self._make_polygon(self._center, radius, self._sides, angle_to_cursor)
+        self._commit(QGraphicsPathItem(path))
+        self._center = None
+        self._cur = None
+
+    def set_dimension(self, value: float) -> None:
+        gs = _gs(self.canvas)
+        if self._drawing and self._center is not None:
+            self._cur = QPointF(self._center.x() + value * gs, self._center.y())
+            self._dim_locked = True
+
+    @staticmethod
+    def _make_polygon(center: QPointF, radius: float, sides: int,
+                      start_angle: float = 0.0) -> QPainterPath:
+        path = QPainterPath()
+        for i in range(sides):
+            angle = start_angle + 2.0 * math.pi * i / sides
+            x = center.x() + radius * math.cos(angle)
+            y = center.y() + radius * math.sin(angle)
+            if i == 0:
+                path.moveTo(x, y)
+            else:
+                path.lineTo(x, y)
+        path.closeSubpath()
+        return path
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._drawing and self._center is not None and self._cur is not None:
+            radius = QLineF(self._center, self._cur).length()
+            if radius < MIN_DRAG:
+                return
+            angle = math.atan2(self._cur.y() - self._center.y(),
+                               self._cur.x() - self._center.x())
+            path = self._make_polygon(self._center, radius, self._sides, angle)
+            painter.setPen(self._preview_pen)
+            painter.drawPath(path)
+            gs = _gs(self.canvas)
+            _draw_dim_label(painter, self._cur, f"r={_dim_text(radius / gs)} n={self._sides}")
