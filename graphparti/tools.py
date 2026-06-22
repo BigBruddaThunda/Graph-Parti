@@ -1537,6 +1537,222 @@ class MirrorTool(Tool):
         painter.drawLine(QLineF(self._p1, self._cursor))
 
 
+# ═══════════════════════════════════════════════════════════ scale
+class ScaleTool(Tool):
+    """Scale selected items. Click anchor → drag to scale (distance from
+    anchor = scale factor). Live preview. Ortho constrains to uniform.
+    Tab-type an exact scale factor (e.g. 0.5 = half, 2.0 = double)."""
+    name = "scale"
+
+    def reset(self) -> None:
+        self._items: list = []
+        self._anchor = None
+        self._ref_dist = None
+        self._phase = 0
+        self._cursor = None
+        self._orig: dict = {}
+        self._factor = 1.0
+        self._banding = False
+        self._band_start = None
+        self._band_cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def cancel(self) -> None:
+        self._restore()
+        self.reset()
+        self.canvas.viewport().update()
+
+    def on_key(self, key) -> None:
+        if key == Qt.Key.Key_Escape:
+            self.cancel()
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            items = list(self.canvas.scene().selectedItems())
+            if items:
+                self._start_scaling(items, p)
+                return
+            pick = self.canvas.pick_item(p)
+            if pick:
+                self.canvas.scene().clearSelection()
+                pick.setSelected(True)
+                self._start_scaling([pick], p)
+                return
+            self._band_start = QPointF(p)
+            self._band_cur = QPointF(p)
+            self._banding = True
+        elif self._phase == 1:
+            if self._ref_dist is None:
+                d = QLineF(self._anchor, p).length()
+                if d > _gs(self.canvas) * 0.2:
+                    self._ref_dist = d
+            else:
+                self._commit()
+
+    def _start_scaling(self, items, p):
+        self._items = items
+        self._anchor = QPointF(p)
+        self._orig = {}
+        for it in self._items:
+            self._orig[it] = (QPointF(it.pos()), QTransform(it.transform()),
+                              self._capture_geom(it))
+        self._phase = 1
+        self._ref_dist = None
+
+    def on_move(self, p: QPointF) -> None:
+        if getattr(self, '_banding', False):
+            self._band_cur = QPointF(p)
+        elif self._phase == 1 and self._anchor:
+            self._cursor = QPointF(p)
+            if self._ref_dist is not None:
+                d = QLineF(self._anchor, p).length()
+                self._factor = d / self._ref_dist if self._ref_dist > 1e-6 else 1.0
+                self._apply_scale(self._factor)
+
+    def on_release(self, p: QPointF) -> None:
+        if getattr(self, '_banding', False):
+            self._banding = False
+            rect = QRectF(self._band_start, QPointF(p)).normalized()
+            if rect.width() > 2 or rect.height() > 2:
+                self.canvas.select_in_rect(rect)
+                items = list(self.canvas.scene().selectedItems())
+                if items:
+                    self._items = items
+                    self._phase = 0
+            self._band_start = None
+            self._band_cur = None
+
+    def set_dimension(self, value: float) -> None:
+        if self._phase == 1 and value > 0:
+            self._factor = value
+            self._apply_scale(value)
+
+    def _capture_geom(self, item):
+        if isinstance(item, QGraphicsLineItem):
+            return QLineF(item.line())
+        elif isinstance(item, (QGraphicsRectItem, QGraphicsEllipseItem)):
+            return QRectF(item.rect())
+        elif isinstance(item, QGraphicsPathItem):
+            return QPainterPath(item.path())
+        return None
+
+    def _apply_scale(self, factor: float) -> None:
+        ax, ay = self._anchor.x(), self._anchor.y()
+        for item in self._items:
+            orig_pos, orig_tf, orig_geom = self._orig[item]
+            if isinstance(item, QGraphicsLineItem) and orig_geom:
+                ln = orig_geom
+                p1s = item.mapToScene(ln.p1())
+                p2s = item.mapToScene(ln.p2())
+                np1 = QPointF(ax + (p1s.x() - ax) * factor, ay + (p1s.y() - ay) * factor)
+                np2 = QPointF(ax + (p2s.x() - ax) * factor, ay + (p2s.y() - ay) * factor)
+                item.setPos(0, 0)
+                item.setTransform(QTransform())
+                item.setLine(QLineF(np1, np2))
+            elif isinstance(item, QGraphicsRectItem) and orig_geom:
+                r = orig_geom
+                tl = item.mapToScene(r.topLeft())
+                br = item.mapToScene(r.bottomRight())
+                ntl = QPointF(ax + (tl.x() - ax) * factor, ay + (tl.y() - ay) * factor)
+                nbr = QPointF(ax + (br.x() - ax) * factor, ay + (br.y() - ay) * factor)
+                item.setPos(0, 0)
+                item.setTransform(QTransform())
+                item.setRect(QRectF(ntl, nbr).normalized())
+            elif isinstance(item, QGraphicsEllipseItem) and orig_geom:
+                r = orig_geom
+                tl = item.mapToScene(r.topLeft())
+                br = item.mapToScene(r.bottomRight())
+                ntl = QPointF(ax + (tl.x() - ax) * factor, ay + (tl.y() - ay) * factor)
+                nbr = QPointF(ax + (br.x() - ax) * factor, ay + (br.y() - ay) * factor)
+                item.setPos(0, 0)
+                item.setTransform(QTransform())
+                item.setRect(QRectF(ntl, nbr).normalized())
+            elif isinstance(item, QGraphicsPathItem) and orig_geom:
+                old_path = orig_geom
+                new_path = QPainterPath()
+                for i in range(old_path.elementCount()):
+                    el = old_path.elementAt(i)
+                    ps = item.mapToScene(QPointF(el.x, el.y))
+                    np = QPointF(ax + (ps.x() - ax) * factor, ay + (ps.y() - ay) * factor)
+                    if i == 0:
+                        new_path.moveTo(np)
+                    else:
+                        new_path.lineTo(np)
+                item.setPos(0, 0)
+                item.setTransform(QTransform())
+                item.setPath(new_path)
+            else:
+                sx = ax + (orig_pos.x() - ax) * factor
+                sy = ay + (orig_pos.y() - ay) * factor
+                item.setPos(sx, sy)
+                tf = QTransform()
+                tf.scale(factor, factor)
+                item.setTransform(orig_tf * tf)
+        self.canvas.viewport().update()
+
+    def _restore(self) -> None:
+        for item, (op, ot, og) in self._orig.items():
+            item.setPos(op)
+            item.setTransform(ot)
+            if og is not None:
+                if isinstance(item, QGraphicsLineItem):
+                    item.setLine(og)
+                elif isinstance(item, (QGraphicsRectItem, QGraphicsEllipseItem)):
+                    item.setRect(og)
+                elif isinstance(item, QGraphicsPathItem):
+                    item.setPath(og)
+
+    def _commit(self) -> None:
+        if not self._items or self._anchor is None:
+            self.reset()
+            return
+        us = self.canvas.undo_stack
+        if us:
+            from .commands import ScaleCommand
+            snapshots = []
+            for item in self._items:
+                old_pos, old_tf, old_geom = self._orig[item]
+                new_geom = self._capture_geom(item)
+                snapshots.append((item, old_pos, old_tf, old_geom,
+                                  QPointF(item.pos()), QTransform(item.transform()),
+                                  new_geom))
+            us.push(ScaleCommand(snapshots))
+        self.canvas.scene().clearSelection()
+        self.reset()
+        self.canvas.viewport().update()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if getattr(self, '_banding', False) and self._band_start and self._band_cur:
+            pen = QPen(QColor("#F57E16"))
+            pen.setCosmetic(True)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.drawRect(QRectF(self._band_start, self._band_cur).normalized())
+            return
+        if self._phase != 1 or self._anchor is None:
+            return
+        gs = _gs(self.canvas)
+        s = gs * 0.3
+        pen = QPen(QColor("#F57E16"))
+        pen.setCosmetic(True)
+        pen.setWidthF(1.2)
+        painter.setPen(pen)
+        painter.drawLine(QLineF(self._anchor.x() - s, self._anchor.y(),
+                                self._anchor.x() + s, self._anchor.y()))
+        painter.drawLine(QLineF(self._anchor.x(), self._anchor.y() - s,
+                                self._anchor.x(), self._anchor.y() + s))
+        if self._cursor is not None and self._ref_dist is not None:
+            dash = QPen(QColor("#F57E16"))
+            dash.setCosmetic(True)
+            dash.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(dash)
+            painter.drawLine(QLineF(self._anchor, self._cursor))
+            _draw_dim_label(painter, self._cursor, f"×{self._factor:.2f}")
+
+
 class PaintTool(Tool):
     """Region flood-fill: fills the closed region you click on (bounded by lines + grid)."""
     name = "paint"
@@ -1878,3 +2094,104 @@ class CellTextTool(Tool):
     def on_key(self, key) -> None:
         if key == Qt.Key.Key_Escape:
             _exit_text(self, self.canvas)
+
+
+# ═══════════════════════════════════════════════════════════ copy at origin
+class CopyTool(Tool):
+    """AutoCAD-style COPY: select → base point → destination(s). Escape exits."""
+    name = "copy"
+
+    def reset(self) -> None:
+        self._base = None
+        self._blueprints = []
+        self._phase = 0  # 0=grab selection, 1=pick base, 2=pick destinations
+        self._cur = None
+
+    def activate(self) -> None:
+        self.reset()
+        items = self.canvas.scene().selectedItems()
+        if not items:
+            return
+        self._blueprints = []
+        for it in items:
+            bp = self.canvas._item_blueprint(it)
+            if bp:
+                self._blueprints.append(bp)
+        if self._blueprints:
+            self._phase = 1  # waiting for base point
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 1:
+            self._base = QPointF(p)
+            self._phase = 2
+        elif self._phase == 2:
+            self._place_copies(QPointF(p))
+
+    def _place_copies(self, dest: QPointF) -> None:
+        if self._base is None or not self._blueprints:
+            return
+        offset = dest - self._base
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Copy")
+        for bp in self._blueprints:
+            item = _item_from_blueprint(bp, offset)
+            if item is not None:
+                self.canvas.add_item(item)
+        if us:
+            us.endMacro()
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase == 2 and self._base is not None and self._cur is not None:
+            painter.setPen(self._preview_pen)
+            painter.drawLine(QLineF(self._base, self._cur))
+
+
+def _item_from_blueprint(bp, offset: QPointF):
+    """Reconstruct a QGraphicsItem from a blueprint tuple, shifted by offset.
+
+    Blueprint format (from CanvasView._item_blueprint):
+      ("line", QLineF, pen, data, brush)
+      ("rect", QRectF, pen, data, brush)
+      ("ellipse", QRectF, pen, data, brush)
+      ("path", QPainterPath, pen, data, brush)
+    """
+    item = None
+    if bp[0] == "line":
+        ln = bp[1]
+        item = QGraphicsLineItem(QLineF(
+            QPointF(ln.p1().x() + offset.x(), ln.p1().y() + offset.y()),
+            QPointF(ln.p2().x() + offset.x(), ln.p2().y() + offset.y())))
+    elif bp[0] == "rect":
+        item = QGraphicsRectItem(bp[1].translated(offset))
+    elif bp[0] == "ellipse":
+        item = QGraphicsEllipseItem(bp[1].translated(offset))
+    elif bp[0] == "path":
+        sp = QPainterPath()
+        src = bp[1]
+        for i in range(src.elementCount()):
+            el = src.elementAt(i)
+            pt = QPointF(el.x + offset.x(), el.y + offset.y())
+            if i == 0:
+                sp.moveTo(pt)
+            else:
+                sp.lineTo(pt)
+        item = QGraphicsPathItem(sp)
+    if item is not None:
+        if bp[2]:  # pen
+            item.setPen(bp[2])
+        if len(bp) > 4 and bp[4] and hasattr(item, 'setBrush'):
+            item.setBrush(bp[4])
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, dict(bp[3]) if bp[3] else {"zip": "", "note": ""})
+    return item

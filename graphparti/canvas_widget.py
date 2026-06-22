@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, CellTextTool, CircleTool, DivideTool, EllipseTool, ExtendTool,
-    LineTool, MirrorTool, OffsetTool, PaintTool, PolylineTool, RectTool,
-    RotateTool, SelectTool, TrimTool, WordTextTool,
+    ArcTool, CellTextTool, CircleTool, CopyTool, DivideTool, EllipseTool,
+    ExtendTool, LineTool, MirrorTool, OffsetTool, PaintTool, PolylineTool,
+    RectTool, RotateTool, ScaleTool, SelectTool, TrimTool, WordTextTool,
 )
 
 _SCENE_HALF = 100_000
@@ -276,8 +276,10 @@ class CanvasWidget(QWidget):
             "divide": DivideTool(self.view),
             "rotate": RotateTool(self.view),
             "mirror": MirrorTool(self.view),
+            "scale": ScaleTool(self.view),
             "ellipse": EllipseTool(self.view),
             "arc": ArcTool(self.view),
+            "copy": CopyTool(self.view),
         }
 
         self.toolbar = self._build_toolbar()
@@ -360,6 +362,7 @@ class CanvasWidget(QWidget):
         self.view.set_tool(self._tools["line"])
         self.view._extend_tool = self._tools["extend"]
         self._file_path = None
+        self._autoload_template()
 
         from .joystick import ViewNavigator, JoystickNavigator, joystick_available
         self._navigator = ViewNavigator(self.view)
@@ -434,8 +437,10 @@ class CanvasWidget(QWidget):
             ("extend", "Extend", ""), ("divide", "Divide", "D"),
             ("rotate", "Rotate", ""),
             ("mirror", "Mirror", "M"),
+            ("scale", "Scale", "S"),
             ("offset", "Offset", "O"), ("paint", "Paint", "B"),
             ("word", "Word", "A"), ("cell", "Cell", "G"),
+            ("copy", "Copy", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
@@ -571,6 +576,16 @@ class CanvasWidget(QWidget):
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)
         self._ortho_btn.setToolTip(f"Ortho lock ({angle}°)")
+
+    def _autoload_template(self) -> None:
+        import os
+        root = os.path.join(os.path.dirname(__file__), os.pardir)
+        template = os.path.join(root, "VIEWPORT-TEMPLATE.parti")
+        if os.path.isfile(template):
+            self.document.load_json(template)
+            self._file_path = os.path.abspath(template)
+            self.view.centerOn(1000, 700)
+            self.view.viewport().update()
 
     # ─────────────────────────────────────────────────── save / load
     def _save(self) -> None:
