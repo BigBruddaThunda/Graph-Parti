@@ -21,7 +21,7 @@ from .tools import (
     EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MeasureTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     SplineTool, StretchTool, TrimTool, WordTextTool,
-    set_line_type, LINE_TYPES,
+    set_line_type, LINE_TYPES, set_line_weight, LINE_WEIGHTS,
 )
 
 _SCENE_HALF = 100_000
@@ -587,6 +587,15 @@ class CanvasWidget(QWidget):
         self._line_type_btn.clicked.connect(self._cycle_line_type)
         tb.addWidget(self._line_type_btn)
 
+        self._line_weight_idx = 3  # default = medium
+        self._line_weight_names = list(LINE_WEIGHTS.keys())
+        self._weight_btn = QToolButton()
+        self._weight_btn.setText("M")
+        self._weight_btn.setToolTip("Weight: medium")
+        self._weight_btn.setFixedWidth(24)
+        self._weight_btn.clicked.connect(self._cycle_line_weight)
+        tb.addWidget(self._weight_btn)
+
         return tb
 
     def _activate_tool(self, key: str) -> None:
@@ -625,6 +634,19 @@ class CanvasWidget(QWidget):
         self.view._active_line_type = name
         for item in self.view.scene().selectedItems():
             set_line_type(item, name)
+
+    def _cycle_line_weight(self) -> None:
+        from .tools import LINE_WEIGHTS, set_line_weight
+        names = list(LINE_WEIGHTS.keys())
+        self._line_weight_idx = (self._line_weight_idx + 1) % len(names)
+        name = names[self._line_weight_idx]
+        labels = {"hairline": "H", "fine": "F", "light": "Lt",
+                  "medium": "M", "bold": "B", "heavy": "Hv", "x-heavy": "XH"}
+        self._weight_btn.setText(labels.get(name, name[:2]))
+        self._weight_btn.setToolTip(f"Weight: {name}")
+        self.view._active_line_weight = LINE_WEIGHTS[name]
+        for item in self.view.scene().selectedItems():
+            set_line_weight(item, name)
 
     def _on_emoji_clicked(self, glyph: str) -> None:
         from PySide6.QtWidgets import QGraphicsTextItem

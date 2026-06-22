@@ -65,6 +65,26 @@ def set_line_type(item, type_name: str) -> None:
     item.setPen(pen)
 
 
+LINE_WEIGHTS = {
+    "hairline": 0.13,
+    "fine":     0.25,
+    "light":    0.35,
+    "medium":   0.50,
+    "bold":     0.70,
+    "heavy":    1.00,
+    "x-heavy":  1.40,
+}
+
+
+def set_line_weight(item, weight_name: str) -> None:
+    """Apply a named line weight to a QGraphicsItem's pen."""
+    if not hasattr(item, 'pen') or not hasattr(item, 'setPen'):
+        return
+    pen = QPen(item.pen())
+    pen.setWidthF(LINE_WEIGHTS.get(weight_name, 1.0))
+    item.setPen(pen)
+
+
 def _ortho_snap(start: QPointF, p: QPointF, angle_step: int = 90) -> QPointF:
     """Constrain *p* to the nearest angle multiple of *angle_step* from *start*."""
     dx = p.x() - start.x()

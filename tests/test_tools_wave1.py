@@ -520,3 +520,19 @@ def test_add_named_layer(canvas_env):
     assert len(doc.layers) == initial_count + 1
     assert doc.active_layer().name == "details"
     assert new_layer.kind == "vector"
+
+
+def test_line_weight_applies(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import make_pen, set_line_weight, LINE_WEIGHTS
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(100, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    view.add_item(line)
+
+    set_line_weight(line, "bold")
+    assert abs(line.pen().widthF() - LINE_WEIGHTS["bold"]) < 0.01
