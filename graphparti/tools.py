@@ -3124,3 +3124,116 @@ class PEditTool(Tool):
                 painter.setPen(handle_pen)
                 painter.setBrush(QBrush(QColor("#2464E5")))
             painter.drawEllipse(hp, r, r)
+
+
+# ═══════════════════════════════════════════════════════════ linear dimension
+class LinearDimTool(Tool):
+    """3-click: pick pt1, pick pt2, pick offset → dimension annotation."""
+    name = "dim_linear"
+
+    _EXT_OFFSET = 0.1
+    _EXT_OVERSHOOT = 0.15
+    _TICK_SIZE = 0.15
+    _TEXT_HEIGHT = 10
+
+    def reset(self) -> None:
+        self._pts = []
+        self._phase = 0
+        self._cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        self._pts.append(QPointF(p))
+        self._phase += 1
+        if self._phase == 3:
+            self._create_dimension()
+            self.reset()
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def _create_dimension(self) -> None:
+        p1, p2, offset_pt = self._pts
+        gs = _gs(self.canvas)
+
+        dx_off = offset_pt.x() - (p1.x() + p2.x()) / 2
+        dy_off = offset_pt.y() - (p1.y() + p2.y()) / 2
+
+        if abs(dy_off) >= abs(dx_off):
+            dim_y = offset_pt.y()
+            sign1 = 1 if dim_y > p1.y() else -1
+            sign2 = 1 if dim_y > p2.y() else -1
+            ext1_start = QPointF(p1.x(), p1.y() + self._EXT_OFFSET * gs * sign1)
+            ext1_end = QPointF(p1.x(), dim_y + self._EXT_OVERSHOOT * gs * sign1)
+            ext2_start = QPointF(p2.x(), p2.y() + self._EXT_OFFSET * gs * sign2)
+            ext2_end = QPointF(p2.x(), dim_y + self._EXT_OVERSHOOT * gs * sign2)
+            dim_left = QPointF(p1.x(), dim_y)
+            dim_right = QPointF(p2.x(), dim_y)
+            measured = abs(p2.x() - p1.x()) / gs
+        else:
+            dim_x = offset_pt.x()
+            sign1 = 1 if dim_x > p1.x() else -1
+            sign2 = 1 if dim_x > p2.x() else -1
+            ext1_start = QPointF(p1.x() + self._EXT_OFFSET * gs * sign1, p1.y())
+            ext1_end = QPointF(dim_x + self._EXT_OVERSHOOT * gs * sign1, p1.y())
+            ext2_start = QPointF(p2.x() + self._EXT_OFFSET * gs * sign2, p2.y())
+            ext2_end = QPointF(dim_x + self._EXT_OVERSHOOT * gs * sign2, p2.y())
+            dim_left = QPointF(dim_x, p1.y())
+            dim_right = QPointF(dim_x, p2.y())
+            measured = abs(p2.y() - p1.y()) / gs
+
+        path = QPainterPath()
+        path.moveTo(ext1_start)
+        path.lineTo(ext1_end)
+        path.moveTo(ext2_start)
+        path.lineTo(ext2_end)
+        path.moveTo(dim_left)
+        path.lineTo(dim_right)
+
+        tick = self._TICK_SIZE * gs
+        for pt in (dim_left, dim_right):
+            path.moveTo(QPointF(pt.x() - tick * 0.5, pt.y() + tick * 0.5))
+            path.lineTo(QPointF(pt.x() + tick * 0.5, pt.y() - tick * 0.5))
+
+        pen = QPen(QColor("#3C3C3C"))
+        pen.setWidthF(0.5)
+        pen.setCosmetic(True)
+
+        item = QGraphicsPathItem(path)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "dimension")
+
+        text = _dim_text(measured)
+        txt = QGraphicsTextItem(text, item)
+        txt.setFont(_load_vg5000(self._TEXT_HEIGHT))
+        txt.setDefaultTextColor(QColor("#3C3C3C"))
+        mid = QPointF((dim_left.x() + dim_right.x()) / 2,
+                      (dim_left.y() + dim_right.y()) / 2)
+        txt.setPos(mid.x() - txt.boundingRect().width() / 2,
+                   mid.y() - txt.boundingRect().height() - 2)
+
+        self.canvas.add_item(item)
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if not self._pts or self._cur is None:
+            return
+        painter.setPen(self._preview_pen)
+        if self._phase == 1:
+            painter.drawLine(QLineF(self._pts[0], self._cur))
+            gs = _gs(self.canvas)
+            d = QLineF(self._pts[0], self._cur).length() / gs
+            if d > 0.1:
+                _draw_dim_label(painter, self._cur, _dim_text(d))
+        elif self._phase == 2 and len(self._pts) == 2:
+            painter.drawLine(QLineF(self._pts[0], self._pts[1]))
+            mid = QPointF((self._pts[0].x() + self._pts[1].x()) / 2,
+                          (self._pts[0].y() + self._pts[1].y()) / 2)
+            painter.drawLine(QLineF(mid, self._cur))

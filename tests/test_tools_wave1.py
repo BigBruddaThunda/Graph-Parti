@@ -336,3 +336,20 @@ def test_pedit_moves_vertex(canvas_env):
     new_path = item.path()
     el = new_path.elementAt(1)
     assert abs(el.x - 80) < 1, f"Expected vertex 1 x=80, got {el.x}"
+
+
+def test_linear_dim_creates_annotation(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import LinearDimTool
+
+    view, scene, undo = canvas_env
+    gs = view.grid_spacing
+
+    tool = LinearDimTool(view)
+    tool.on_press(QPointF(0, 0))
+    tool.on_press(QPointF(100, 0))
+    tool.on_press(QPointF(50, -40))
+
+    dims = [i for i in scene.items()
+            if isinstance(i, QGraphicsPathItem) and i.data(1) == "dimension"]
+    assert len(dims) == 1, f"Expected 1 dimension, got {len(dims)}"
