@@ -729,9 +729,11 @@ class SelectTool(Tool):
                 it.setPos(orig)
             self.canvas.push_move(list(self._orig.keys()), d.x(), d.y())
         elif self._mode == "band" and self._band_start is not None:
+            crossing = self._band_cur.x() < self._band_start.x()
             self.canvas.select_in_rect(
                 QRectF(self._band_start, self._band_cur).normalized(),
                 additive=self._shift,
+                crossing=crossing,
             )
         self.reset()
 
@@ -750,7 +752,8 @@ class SelectTool(Tool):
 
     def paint_preview(self, painter: QPainter) -> None:
         if self._mode == "band" and self._band_start is not None and self._band_cur is not None:
-            pen = QPen(QColor("#2464E5"))
+            crossing = self._band_cur.x() < self._band_start.x()
+            pen = QPen(QColor("#348219") if crossing else QColor("#2464E5"))
             pen.setCosmetic(True)
             pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)

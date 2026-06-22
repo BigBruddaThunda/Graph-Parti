@@ -435,3 +435,30 @@ def test_spline_creates_smooth_curve(canvas_env):
     assert len(paths) >= 1, "Expected at least 1 spline path"
     path = paths[0].path()
     assert path.elementCount() > 4, f"Expected cubic elements, got {path.elementCount()}"
+
+
+def test_crossing_select_picks_touching_items(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import SelectTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(200, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    line.setData(0, {"zip": "", "note": ""})
+    view.add_item(line)
+
+    tool = SelectTool(view)
+    view.set_tool(tool)
+
+    # Right-to-left band select (crossing): start.x > end.x
+    tool.on_press(QPointF(100, -20))
+    tool._mode = "band"
+    tool._band_start = QPointF(100, -20)
+    tool._band_cur = QPointF(50, 20)
+    tool.on_release(QPointF(50, 20))
+
+    selected = scene.selectedItems()
+    assert len(selected) == 1, f"Crossing select should pick the touching line, got {len(selected)}"

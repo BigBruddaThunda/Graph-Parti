@@ -243,11 +243,14 @@ class CanvasView(QGraphicsView):
         if self.undo_stack is not None and items:
             self.undo_stack.push(MoveItemsCommand(items, dx, dy))
 
-    def select_in_rect(self, rect: QRectF, additive: bool = False) -> None:
+    def select_in_rect(self, rect: QRectF, additive: bool = False,
+                       crossing: bool = False) -> None:
         if not additive:
             self.scene().clearSelection()
         allowed = self._active_layer_items()
-        for it in self.scene().items(rect):
+        mode = (Qt.ItemSelectionMode.IntersectsItemShape if crossing
+                else Qt.ItemSelectionMode.ContainsItemShape)
+        for it in self.scene().items(rect, mode):
             if it in allowed and bool(it.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable):
                 it.setSelected(True)
 
@@ -255,6 +258,62 @@ class CanvasView(QGraphicsView):
         items = self.scene().selectedItems()
         if items and self.undo_stack is not None and self.document is not None:
             self.undo_stack.push(DeleteItemsCommand(self.document, items))
+
+    def explode_selected(self) -> None:
+        """Break selected compound shapes into individual line segments."""
+        from .commands import ExplodeCommand
+        items = self.scene().selectedItems()
+        if not items or self.undo_stack is None or self.document is None:
+            return
+        self.undo_stack.beginMacro("Explode")
+        for item in items:
+            segs = self._line_segments(item)
+            if len(segs) < 2:
+                continue
+            pen = item.pen() if hasattr(item, 'pen') else None
+            meta = item.data(0) or {"zip": "", "note": ""}
+            new_items = []
+            for seg in segs:
+                if seg.length() < 1e-6:
+                    continue
+                li = QGraphicsLineItem(seg)
+                if pen:
+                    li.setPen(pen)
+                li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                li.setData(0, dict(meta))
+                new_items.append(li)
+            if new_items:
+                self.undo_stack.push(ExplodeCommand(self.document, item, new_items))
+        self.undo_stack.endMacro()
+        self.viewport().update()
+
+    def overkill_selected(self) -> None:
+        """Remove duplicate/overlapping line segments from selection.
+        Keeps fills and non-line items untouched."""
+        from .commands import OverkillCommand
+        items = self.scene().selectedItems()
+        if not items or self.undo_stack is None or self.document is None:
+            return
+        lines = [it for it in items if isinstance(it, QGraphicsLineItem)]
+        if len(lines) < 2:
+            return
+        tol = self.grid_spacing * 0.1
+        seen: list[tuple[float, float, float, float]] = []
+        dupes = []
+        for li in lines:
+            ln = li.line()
+            p1 = li.mapToScene(ln.p1())
+            p2 = li.mapToScene(ln.p2())
+            k1 = (round(p1.x() / tol), round(p1.y() / tol),
+                  round(p2.x() / tol), round(p2.y() / tol))
+            k2 = (k1[2], k1[3], k1[0], k1[1])
+            if k1 in seen or k2 in seen:
+                dupes.append(li)
+            else:
+                seen.append(k1)
+        if dupes:
+            self.undo_stack.push(OverkillCommand(self.document, dupes))
+        self.viewport().update()
 
     def trim_at(self, scene_pos: QPointF) -> None:
         """Trim: find the segment under the cursor, cut at grid + intersection boundaries."""
@@ -811,6 +870,16 @@ class CanvasView(QGraphicsView):
                 vbar = self.verticalScrollBar()
                 hbar.setValue(int(hbar.value() + dx * gs * zoom))
                 vbar.setValue(int(vbar.value() + dy * gs * zoom))
+            event.accept()
+            return
+
+        # Ctrl+E = explode selected, Ctrl+K = overkill selected
+        if event.key() == Qt.Key.Key_E and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.explode_selected()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_K and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.overkill_selected()
             event.accept()
             return
 
