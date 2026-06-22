@@ -3682,3 +3682,69 @@ class StretchTool(Tool):
         elif self._phase >= 1 and self._base is not None and self._cur is not None:
             painter.setPen(self._preview_pen)
             painter.drawLine(QLineF(self._base, self._cur))
+
+
+# ═══════════════════════════════════════════════════════════ measure
+class MeasureTool(Tool):
+    """Click two points → persistent distance annotation."""
+    name = "measure"
+
+    def reset(self) -> None:
+        self._pts = []
+        self._phase = 0
+        self._cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        self._pts.append(QPointF(p))
+        self._phase += 1
+        if self._phase == 2:
+            self._create_measure()
+            self.reset()
+
+    def on_move(self, p: QPointF) -> None:
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        pass
+
+    def _create_measure(self) -> None:
+        p1, p2 = self._pts
+        gs = _gs(self.canvas)
+        dist = QLineF(p1, p2).length() / gs
+
+        path = QPainterPath()
+        path.moveTo(p1)
+        path.lineTo(p2)
+
+        pen = QPen(QColor("#2464E5"))
+        pen.setWidthF(0.5)
+        pen.setCosmetic(True)
+        pen.setStyle(Qt.PenStyle.DashLine)
+
+        item = QGraphicsPathItem(path)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "measure")
+
+        mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+        txt = QGraphicsTextItem(_dim_text(dist), item)
+        txt.setFont(_load_vg5000(10))
+        txt.setDefaultTextColor(QColor("#2464E5"))
+        txt.setPos(mid.x() - txt.boundingRect().width() / 2,
+                   mid.y() - txt.boundingRect().height() - 2)
+
+        self.canvas.add_item(item)
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase == 1 and len(self._pts) == 1 and self._cur is not None:
+            painter.setPen(self._preview_pen)
+            painter.drawLine(QLineF(self._pts[0], self._cur))
+            gs = _gs(self.canvas)
+            d = QLineF(self._pts[0], self._cur).length() / gs
+            if d > 0.1:
+                _draw_dim_label(painter, self._cur, _dim_text(d))

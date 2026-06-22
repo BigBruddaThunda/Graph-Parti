@@ -491,3 +491,18 @@ def test_stretch_moves_partial_vertices(canvas_env):
     assert abs(p2.x() - 140) < 2, f"Expected p2.x ~ 140, got {p2.x()}"
     p1 = line.mapToScene(ln.p1())
     assert abs(p1.x() - 0) < 2, f"Expected p1.x ~ 0, got {p1.x()}"
+
+
+def test_measure_shows_distance(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import MeasureTool
+
+    view, scene, undo = canvas_env
+
+    tool = MeasureTool(view)
+    tool.on_press(QPointF(0, 0))
+    tool.on_press(QPointF(60, 0))
+
+    measures = [i for i in scene.items()
+                if isinstance(i, QGraphicsPathItem) and i.data(1) == "measure"]
+    assert len(measures) == 1, f"Expected 1 measure annotation, got {len(measures)}"
