@@ -2404,3 +2404,49 @@ class PolygonTool(Tool):
             painter.drawPath(path)
             gs = _gs(self.canvas)
             _draw_dim_label(painter, self._cur, f"r={_dim_text(radius / gs)} n={self._sides}")
+
+
+# ═══════════════════════════════════════════════════════════ array rectangular
+class ArrayRectTool(Tool):
+    """Clone selection in a rows x cols grid. Click to execute.
+    Set _rows, _cols, _row_spacing, _col_spacing before or via Tab input."""
+    name = "array_rect"
+
+    def reset(self) -> None:
+        self._rows = 3
+        self._cols = 3
+        self._row_spacing = 2.0  # grid units
+        self._col_spacing = 2.0  # grid units
+
+    def activate(self) -> None:
+        if not hasattr(self, "_rows"):
+            self.reset()
+
+    def on_press(self, p: QPointF) -> None:
+        items = self.canvas.scene().selectedItems()
+        if not items:
+            return
+        gs = _gs(self.canvas)
+        blueprints = []
+        for it in items:
+            bp = self.canvas._item_blueprint(it)
+            if bp:
+                blueprints.append(bp)
+        if not blueprints:
+            return
+
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Array rectangular")
+        for r in range(self._rows):
+            for c in range(self._cols):
+                if r == 0 and c == 0:
+                    continue  # skip original position
+                offset = QPointF(c * self._col_spacing * gs,
+                                 r * self._row_spacing * gs)
+                for bp in blueprints:
+                    item = _item_from_blueprint(bp, offset)
+                    if item is not None:
+                        self.canvas.add_item(item)
+        if us:
+            us.endMacro()

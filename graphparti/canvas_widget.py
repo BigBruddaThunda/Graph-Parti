@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .canvas_view import CanvasView
 from .document import Document
 from .tools import (
-    ArcTool, CellTextTool, CircleTool, ConstructionLineTool, CopyTool,
+    ArcTool, ArrayRectTool, CellTextTool, CircleTool, ConstructionLineTool, CopyTool,
     DivideTool, EllipseTool,
     EyedropperTool, ExtendTool, LineTool, MatchPropTool, MirrorTool, OffsetTool, PaintTool,
     PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool, TrimTool,
@@ -281,6 +281,7 @@ class CanvasWidget(QWidget):
             "scale": ScaleTool(self.view),
             "ellipse": EllipseTool(self.view),
             "arc": ArcTool(self.view),
+            "array_rect": ArrayRectTool(self.view),
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "xline": ConstructionLineTool(self.view),
@@ -439,7 +440,7 @@ class CanvasWidget(QWidget):
             ("select", "Select", "V"), ("line", "Line", "L"),
             ("polyline", "Polyline", "P"), ("rect", "Rect", "R"),
             ("circle", "Circle", "C"), ("ellipse", "Ellipse", ""),
-            ("arc", "Arc", ""), ("trim", "Trim", "T"),
+            ("arc", "Arc", ""), ("array_rect", "ArrR", ""), ("trim", "Trim", "T"),
             ("extend", "Extend", ""), ("divide", "Divide", "D"),
             ("rotate", "Rotate", ""),
             ("mirror", "Mirror", "M"),

@@ -132,3 +132,37 @@ def test_polygon_creates_hexagon(canvas_env):
     assert path.elementCount() == 7, (
         f"Expected 7 path elements for hexagon, got {path.elementCount()}"
     )
+
+
+def test_array_rect_creates_grid(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import ArrayRectTool, make_pen
+
+    view, scene, undo = canvas_env
+    gs = view.grid_spacing  # 20
+
+    # Source line
+    src = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(40, 0)))
+    src.setPen(make_pen("#3C3C3C", 1.0))
+    src.setFlag(src.GraphicsItemFlag.ItemIsSelectable, True)
+    src.setData(0, {"zip": "", "note": ""})
+    view.add_item(src)
+    src.setSelected(True)
+
+    tool = ArrayRectTool(view)
+    tool._rows = 2
+    tool._cols = 3
+    tool._row_spacing = 2.0  # grid units
+    tool._col_spacing = 3.0  # grid units
+    tool.activate()
+    tool.on_press(QPointF(0, 0))  # trigger the array
+
+    lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    # 2 rows × 3 cols = 6 total (including original)
+    assert len(lines) == 6, f"Expected 6 lines (2x3), got {len(lines)}"
+
+    # Verify undo removes all clones at once
+    undo.undo()
+    lines_after = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+    assert len(lines_after) == 1, f"After undo, expected 1 line, got {len(lines_after)}"
