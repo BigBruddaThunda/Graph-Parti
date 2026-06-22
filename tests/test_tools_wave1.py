@@ -462,3 +462,32 @@ def test_crossing_select_picks_touching_items(canvas_env):
 
     selected = scene.selectedItems()
     assert len(selected) == 1, f"Crossing select should pick the touching line, got {len(selected)}"
+
+
+def test_stretch_moves_partial_vertices(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem
+    from graphparti.tools import StretchTool, make_pen
+
+    view, scene, undo = canvas_env
+
+    line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(100, 0)))
+    line.setPen(make_pen("#3C3C3C", 1.0))
+    line.setFlag(line.GraphicsItemFlag.ItemIsSelectable, True)
+    line.setData(0, {"zip": "", "note": ""})
+    view.add_item(line)
+
+    tool = StretchTool(view)
+    # Phase 0: crossing window around right endpoint only (80→120, -20→20)
+    tool.on_press(QPointF(120, -20))
+    tool.on_move(QPointF(80, 20))
+    tool.on_release(QPointF(80, 20))
+    # Phase 1→2: base at (100,0), destination at (140,0) = stretch right by 40
+    tool.on_press(QPointF(100, 0))
+    tool.on_release(QPointF(140, 0))
+
+    ln = line.line()
+    p2 = line.mapToScene(ln.p2())
+    assert abs(p2.x() - 140) < 2, f"Expected p2.x ~ 140, got {p2.x()}"
+    p1 = line.mapToScene(ln.p1())
+    assert abs(p1.x() - 0) < 2, f"Expected p1.x ~ 0, got {p1.x()}"

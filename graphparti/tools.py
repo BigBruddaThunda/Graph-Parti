@@ -3551,3 +3551,134 @@ class SplineTool(Tool):
         r = gs * 0.15
         for pt in self._points:
             painter.drawEllipse(pt, r, r)
+
+
+# ═══════════════════════════════════════════════════════════ stretch
+class StretchTool(Tool):
+    """Crossing window → drag to move only captured vertices."""
+    name = "stretch"
+
+    def reset(self) -> None:
+        self._phase = 0
+        self._window_start = None
+        self._window_end = None
+        self._captured = []
+        self._base = None
+        self._cur = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def on_press(self, p: QPointF) -> None:
+        if self._phase == 0:
+            self._window_start = QPointF(p)
+            self._window_end = QPointF(p)
+        elif self._phase == 1:
+            self._base = QPointF(p)
+            self._phase = 2
+        elif self._phase == 2:
+            self._apply_stretch(QPointF(p))
+            self.reset()
+
+    def on_move(self, p: QPointF) -> None:
+        if self._phase == 0 and self._window_start is not None:
+            self._window_end = QPointF(p)
+        self._cur = QPointF(p)
+
+    def on_release(self, p: QPointF) -> None:
+        if self._phase == 0 and self._window_start is not None:
+            self._window_end = QPointF(p)
+            self._capture_vertices()
+            if self._captured:
+                self._phase = 1
+            else:
+                self.reset()
+        elif self._phase == 2:
+            self._apply_stretch(QPointF(p))
+            self.reset()
+
+    def _capture_vertices(self) -> None:
+        rect = QRectF(self._window_start, self._window_end).normalized()
+        self._captured = []
+        if self.canvas.document is None:
+            return
+        for layer in self.canvas.document.layers:
+            if layer.kind != "vector" or not layer.visible:
+                continue
+            for item in layer.items():
+                if isinstance(item, QGraphicsLineItem):
+                    ln = item.line()
+                    p1 = item.mapToScene(ln.p1())
+                    p2 = item.mapToScene(ln.p2())
+                    if rect.contains(p1):
+                        self._captured.append((item, 0, QPointF(p1)))
+                    if rect.contains(p2):
+                        self._captured.append((item, 1, QPointF(p2)))
+                elif isinstance(item, QGraphicsPathItem):
+                    path = item.path()
+                    for i in range(path.elementCount()):
+                        el = path.elementAt(i)
+                        pt = item.mapToScene(QPointF(el.x, el.y))
+                        if rect.contains(pt):
+                            self._captured.append((item, i, QPointF(pt)))
+
+    def _apply_stretch(self, dest: QPointF) -> None:
+        if self._base is None or not self._captured:
+            return
+        dx = dest.x() - self._base.x()
+        dy = dest.y() - self._base.y()
+        us = self.canvas.undo_stack
+        if us:
+            us.beginMacro("Stretch")
+        from .commands import ReshapeCommand
+        processed = set()
+        for item, vidx, orig_pt in self._captured:
+            item_id = id(item)
+            if item_id in processed:
+                continue
+            if isinstance(item, QGraphicsLineItem):
+                verts = {v for it, v, o in self._captured if it is item}
+                old_ln = QLineF(item.line())
+                p1 = item.mapToScene(old_ln.p1())
+                p2 = item.mapToScene(old_ln.p2())
+                if 0 in verts:
+                    p1 = QPointF(p1.x() + dx, p1.y() + dy)
+                if 1 in verts:
+                    p2 = QPointF(p2.x() + dx, p2.y() + dy)
+                new_ln = QLineF(item.mapFromScene(p1), item.mapFromScene(p2))
+                if us:
+                    us.push(ReshapeCommand(item, old_ln, new_ln))
+                else:
+                    item.setLine(new_ln)
+                processed.add(item_id)
+            elif isinstance(item, QGraphicsPathItem):
+                verts = {v for it, v, o in self._captured if it is item}
+                old_path = QPainterPath(item.path())
+                new_path = QPainterPath()
+                src = item.path()
+                for i in range(src.elementCount()):
+                    el = src.elementAt(i)
+                    if i in verts:
+                        pt = QPointF(el.x + dx, el.y + dy)
+                    else:
+                        pt = QPointF(el.x, el.y)
+                    if i == 0:
+                        new_path.moveTo(pt)
+                    else:
+                        new_path.lineTo(pt)
+                if us:
+                    us.push(ReshapeCommand(item, old_path, new_path))
+                else:
+                    item.setPath(new_path)
+                processed.add(item_id)
+        if us:
+            us.endMacro()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._phase == 0 and self._window_start is not None and self._window_end is not None:
+            painter.setPen(self._preview_pen)
+            painter.drawRect(QRectF(self._window_start, self._window_end).normalized())
+        elif self._phase >= 1 and self._base is not None and self._cur is not None:
+            painter.setPen(self._preview_pen)
+            painter.drawLine(QLineF(self._base, self._cur))
