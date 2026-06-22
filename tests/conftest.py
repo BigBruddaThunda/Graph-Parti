@@ -35,4 +35,9 @@ def canvas_env():
     view.undo_stack = undo
     view._stroke_color = "#3C3C3C"
     view._fill_color = None
-    return view, scene, undo
+    yield view, scene, undo
+    undo.clear()
+    scene.clear()
+    view.close()
+    view.deleteLater()
+    _app.processEvents()
