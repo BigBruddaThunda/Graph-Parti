@@ -18,7 +18,7 @@ from .document import Document
 from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, CellTextTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
-    EyedropperTool, ExtendTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
+    EyedropperTool, ExtendTool, FilletTool, JoinTool, LineTool, MatchPropTool, MirrorTool, OffsetTool,
     PaintTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     TrimTool, WordTextTool,
 )
@@ -285,6 +285,7 @@ class CanvasWidget(QWidget):
             "array_polar": ArrayPolarTool(self.view),
             "copy": CopyTool(self.view),
             "eyedropper": EyedropperTool(self.view),
+            "fillet": FilletTool(self.view),
             "join": JoinTool(self.view),
             "xline": ConstructionLineTool(self.view),
             "matchprop": MatchPropTool(self.view),
@@ -452,6 +453,7 @@ class CanvasWidget(QWidget):
             ("word", "Word", "A"), ("cell", "Cell", "G"),
             ("copy", "Copy", ""),
             ("eyedropper", "Pick", "I"),
+            ("fillet", "Fillet", ""),
             ("join", "Join", "J"),
             ("xline", "XLine", ""),
             ("matchprop", "Match", ""),

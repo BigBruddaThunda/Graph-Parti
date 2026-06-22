@@ -226,3 +226,33 @@ def test_join_merges_two_lines(canvas_env):
     assert len(paths) == 1, f"Expected 1 joined path, got {len(paths)}"
     lines = [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
     assert len(lines) == 0, f"Expected 0 remaining lines, got {len(lines)}"
+
+
+def test_fillet_creates_arc_between_lines(canvas_env):
+    from PySide6.QtCore import QLineF
+    from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsPathItem
+    from graphparti.tools import FilletTool, make_pen
+
+    view, scene, undo = canvas_env
+    gs = view.grid_spacing
+
+    h_line = QGraphicsLineItem(QLineF(QPointF(-100, 0), QPointF(0, 0)))
+    h_line.setPen(make_pen("#3C3C3C", 1.0))
+    h_line.setFlag(h_line.GraphicsItemFlag.ItemIsSelectable, True)
+    h_line.setData(0, {"zip": "", "note": ""})
+    view.add_item(h_line)
+
+    v_line = QGraphicsLineItem(QLineF(QPointF(0, 0), QPointF(0, -100)))
+    v_line.setPen(make_pen("#3C3C3C", 1.0))
+    v_line.setFlag(v_line.GraphicsItemFlag.ItemIsSelectable, True)
+    v_line.setData(0, {"zip": "", "note": ""})
+    view.add_item(v_line)
+
+    tool = FilletTool(view)
+    tool._radius = 1.0  # 1 grid unit
+
+    tool.on_press(QPointF(-50, 0))
+    tool.on_press(QPointF(0, -50))
+
+    arcs = [i for i in scene.items() if isinstance(i, QGraphicsPathItem)]
+    assert len(arcs) >= 1, "Expected at least 1 arc path from fillet"

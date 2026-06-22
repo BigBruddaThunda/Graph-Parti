@@ -2635,3 +2635,161 @@ class JoinTool(Tool):
                 chain.insert(0, seg.p1() if not best_flip else seg.p2())
 
         return chain
+
+
+# ═══════════════════════════════════════════════════════════ fillet
+class FilletTool(Tool):
+    """Click two lines → round corner with arc of set radius.
+    Radius 0 = extend-to-meet."""
+    name = "fillet"
+
+    def reset(self) -> None:
+        self._first_item = None
+        self._first_pick = None
+        self._phase = 0
+        if not hasattr(self, '_radius'):
+            self._radius = 1.0
+
+    @property
+    def in_progress(self) -> bool:
+        return self._phase > 0
+
+    def set_dimension(self, value: float) -> None:
+        self._radius = value
+
+    def on_press(self, p: QPointF) -> None:
+        item = self.canvas.pick_item(p)
+        if item is None or not isinstance(item, QGraphicsLineItem):
+            return
+        if self._phase == 0:
+            self._first_item = item
+            self._first_pick = QPointF(p)
+            self._phase = 1
+        elif self._phase == 1:
+            self._apply_fillet(self._first_item, item,
+                               self._first_pick, QPointF(p))
+            self.reset()
+
+    def _apply_fillet(self, item_a, item_b, pick_a, pick_b) -> None:
+        gs = _gs(self.canvas)
+        r = self._radius * gs
+
+        seg_a = QLineF(item_a.mapToScene(item_a.line().p1()),
+                       item_a.mapToScene(item_a.line().p2()))
+        seg_b = QLineF(item_b.mapToScene(item_b.line().p1()),
+                       item_b.mapToScene(item_b.line().p2()))
+
+        itype, ix_pt = seg_a.intersects(seg_b)
+        if itype == QLineF.IntersectionType.NoIntersection:
+            return
+
+        us = self.canvas.undo_stack
+        if us is None:
+            return
+
+        if r < 1e-6:
+            # Zero radius = extend-to-meet
+            us.beginMacro("Fillet R=0")
+            from .commands import ReshapeCommand
+            old_a = QLineF(item_a.line())
+            da1 = QLineF(pick_a, seg_a.p1()).length()
+            if da1 < QLineF(pick_a, seg_a.p2()).length():
+                new_a = QLineF(seg_a.p1(), ix_pt)
+            else:
+                new_a = QLineF(ix_pt, seg_a.p2())
+            us.push(ReshapeCommand(item_a, old_a,
+                    QLineF(item_a.mapFromScene(new_a.p1()), item_a.mapFromScene(new_a.p2()))))
+            old_b = QLineF(item_b.line())
+            db1 = QLineF(pick_b, seg_b.p1()).length()
+            if db1 < QLineF(pick_b, seg_b.p2()).length():
+                new_b = QLineF(seg_b.p1(), ix_pt)
+            else:
+                new_b = QLineF(ix_pt, seg_b.p2())
+            us.push(ReshapeCommand(item_b, old_b,
+                    QLineF(item_b.mapFromScene(new_b.p1()), item_b.mapFromScene(new_b.p2()))))
+            us.endMacro()
+            return
+
+        # ── Fillet with radius ──
+        # Unit direction vectors along each line
+        len_a = seg_a.length()
+        len_b = seg_b.length()
+        if len_a < 1e-6 or len_b < 1e-6:
+            return
+        ua_x, ua_y = seg_a.dx() / len_a, seg_a.dy() / len_a
+        ub_x, ub_y = seg_b.dx() / len_b, seg_b.dy() / len_b
+
+        # Direction from intersection toward the "keep" end of each line
+        # (away from the click, toward the far endpoint)
+        da1 = QLineF(pick_a, seg_a.p1()).length()
+        da2 = QLineF(pick_a, seg_a.p2()).length()
+        if da1 > da2:
+            dir_a_x, dir_a_y = -ua_x, -ua_y  # toward p1
+        else:
+            dir_a_x, dir_a_y = ua_x, ua_y     # toward p2
+
+        db1 = QLineF(pick_b, seg_b.p1()).length()
+        db2 = QLineF(pick_b, seg_b.p2()).length()
+        if db1 > db2:
+            dir_b_x, dir_b_y = -ub_x, -ub_y
+        else:
+            dir_b_x, dir_b_y = ub_x, ub_y
+
+        # Tangent points on each line at distance r from intersection
+        tp_a = QPointF(ix_pt.x() + dir_a_x * r, ix_pt.y() + dir_a_y * r)
+        tp_b = QPointF(ix_pt.x() + dir_b_x * r, ix_pt.y() + dir_b_y * r)
+
+        # Arc center: r perpendicular from each line, pick the side toward the other tp
+        perp_a_x, perp_a_y = -dir_a_y, dir_a_x
+        c1 = QPointF(tp_a.x() + r * perp_a_x, tp_a.y() + r * perp_a_y)
+        c2 = QPointF(tp_a.x() - r * perp_a_x, tp_a.y() - r * perp_a_y)
+        center = c1 if QLineF(c1, tp_b).length() < QLineF(c2, tp_b).length() else c2
+
+        # Build arc
+        start_angle = math.degrees(math.atan2(-(tp_a.y() - center.y()),
+                                               tp_a.x() - center.x()))
+        end_angle = math.degrees(math.atan2(-(tp_b.y() - center.y()),
+                                             tp_b.x() - center.x()))
+        sweep = end_angle - start_angle
+        if sweep > 180:
+            sweep -= 360
+        elif sweep < -180:
+            sweep += 360
+
+        arc_rect = QRectF(center.x() - r, center.y() - r, 2 * r, 2 * r)
+        arc_path = QPainterPath()
+        arc_path.arcMoveTo(arc_rect, start_angle)
+        arc_path.arcTo(arc_rect, start_angle, sweep)
+
+        us.beginMacro("Fillet")
+        from .commands import ReshapeCommand, AddItemCommand
+
+        # Trim line A
+        old_a = QLineF(item_a.line())
+        if da1 > da2:
+            new_a = QLineF(seg_a.p1(), tp_a)
+        else:
+            new_a = QLineF(tp_a, seg_a.p2())
+        us.push(ReshapeCommand(item_a, old_a,
+                QLineF(item_a.mapFromScene(new_a.p1()), item_a.mapFromScene(new_a.p2()))))
+
+        # Trim line B
+        old_b = QLineF(item_b.line())
+        if db1 > db2:
+            new_b = QLineF(seg_b.p1(), tp_b)
+        else:
+            new_b = QLineF(tp_b, seg_b.p2())
+        us.push(ReshapeCommand(item_b, old_b,
+                QLineF(item_b.mapFromScene(new_b.p1()), item_b.mapFromScene(new_b.p2()))))
+
+        # Insert arc
+        arc_item = QGraphicsPathItem(arc_path)
+        arc_item.setPen(item_a.pen())
+        arc_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        arc_item.setData(0, {"zip": "", "note": ""})
+        layer = self.canvas.document.layer_for(item_a) if self.canvas.document else None
+        if layer:
+            us.push(AddItemCommand(layer, arc_item))
+
+        us.endMacro()
+        self.canvas.viewport().update()
