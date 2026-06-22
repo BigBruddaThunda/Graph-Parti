@@ -33,9 +33,24 @@ from .canon import (
     AXES, AXIS_LEFT, AXIS_RIGHT, COLORS, COPPER, MODIFIERS, OPERATORS, ORDERS,
 )
 
-_SHELL_MARGIN = 6          # px — breathing space around/between windows
-_REVELATOR_H = 28          # px — matches graph-parti toolbar height
-_DIAL_ACTIVE_PT = 14       # compact dial glyph size (vs 22pt in base shape)
+# ── Viewport scaling law ──
+# Reference frame: 600 × 1399 px (3:7). Every size = percentage of container.
+# Non-uniform fill: width and height scale independently.
+_REF_W, _REF_H = 600, 1399
+
+_PCT_MARGIN_W = 1.0       # 6/600
+_PCT_MARGIN_H = 0.43      # 6/1399
+_PCT_REVELATOR = 2.0      # 28/1399
+_PCT_COMBO = 1.57         # 22/1399
+_PCT_AXIS = 2.6           # 36/1399
+_PCT_INSTRUMENTS = 11.4   # 160/1399
+_FONT_BASE = 0.0072       # ~10px at 1399
+_FONT_DIAL = 0.0136       # ~19px at 1399
+_FONT_ZIP = 0.0072        # revelator text
+
+
+def _pct(dim: int, pct: float) -> int:
+    return max(1, int(dim * pct / 100))
 
 
 class _ClickLabel(QLabel):
@@ -158,10 +173,6 @@ class DialReel(QWidget):
         self._active = _ClickLabel()
         self._active.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._active.setToolTip("click to toggle this dial off (partial zip)")
-        pt = _DIAL_ACTIVE_PT if compact else 22
-        af = self._active.font()
-        af.setPointSize(pt)
-        self._active.setFont(af)
         self._active.clicked.connect(self.toggle)
 
         self._next = QLabel()
@@ -212,13 +223,11 @@ class ArchideckPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAutoFillBackground(True)
-        self.setMinimumWidth(440)
+        self._last_size = (0, 0)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(
-            _SHELL_MARGIN, _SHELL_MARGIN, _SHELL_MARGIN, _SHELL_MARGIN,
-        )
-        root.setSpacing(_SHELL_MARGIN)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
 
         # ── Upper: Revelator ─────────────────────────────────────
         self._build_revelator(root)
@@ -246,28 +255,16 @@ class ArchideckPanel(QWidget):
     def _build_revelator(self, root: QVBoxLayout) -> None:
         frame = QFrame()
         frame.setFrameShape(QFrame.Shape.StyledPanel)
-        frame.setFixedHeight(_REVELATOR_H)
+        self._revelator_frame = frame
 
         row = QHBoxLayout(frame)
         row.setContentsMargins(6, 0, 6, 0)
         row.setSpacing(4)
 
         self._zip_glyphs = QLabel("[ _ _ _ _ ]")
-        zf = self._zip_glyphs.font()
-        zf.setPointSize(10)
-        self._zip_glyphs.setFont(zf)
-
         self._tail = QLabel("± [ _ ]")
-        tf = self._tail.font()
-        tf.setPointSize(10)
-        self._tail.setFont(tf)
-
         self._free = QLineEdit()
         self._free.setPlaceholderText("free-text")
-        self._free.setFixedHeight(_REVELATOR_H - 6)
-        ff = self._free.font()
-        ff.setPointSize(10)
-        self._free.setFont(ff)
 
         row.addWidget(self._zip_glyphs)
         row.addWidget(self._tail)
@@ -313,21 +310,18 @@ class ArchideckPanel(QWidget):
         model_row.setSpacing(4)
         self._backend_combo = QComboBox()
         self._backend_combo.addItems(["ollama", "lmstudio", "anthropic"])
-        self._backend_combo.setFixedHeight(22)
         self._backend_combo.setToolTip("AI backend")
         model_row.addWidget(self._backend_combo)
         self._model_combo = QComboBox()
-        self._model_combo.setFixedHeight(22)
         self._model_combo.setEditable(True)
         self._model_combo.setToolTip("model")
         model_row.addWidget(self._model_combo, 1)
-        refresh_btn = QToolButton()
-        refresh_btn.setText("↻")
-        refresh_btn.setAutoRaise(True)
-        refresh_btn.setFixedSize(22, 22)
-        refresh_btn.setToolTip("refresh model list")
-        refresh_btn.clicked.connect(self._refresh_models)
-        model_row.addWidget(refresh_btn)
+        self._refresh_btn = QToolButton()
+        self._refresh_btn.setText("↻")
+        self._refresh_btn.setAutoRaise(True)
+        self._refresh_btn.setToolTip("refresh model list")
+        self._refresh_btn.clicked.connect(self._refresh_models)
+        model_row.addWidget(self._refresh_btn)
         left.addLayout(model_row)
 
         # input row — single line + the 5th modifier button
@@ -454,7 +448,7 @@ class ArchideckPanel(QWidget):
     # ============================================================
     def _build_instruments(self, root: QVBoxLayout) -> None:
         row = QHBoxLayout()
-        row.setSpacing(_SHELL_MARGIN)
+        row.setSpacing(6)
 
         # ── compact zip dial (4 reels × prev/active/next) ──
         dial_frame = QFrame()
@@ -506,6 +500,50 @@ class ArchideckPanel(QWidget):
         row.addWidget(zpad_frame, 1)  # ~1/3 width
 
         root.addLayout(row)
+
+    # ============================================================
+    # VIEWPORT SCALING — percentage-based resize (600×1399 ref)
+    # ============================================================
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        w, h = self.width(), self.height()
+        if (w, h) == self._last_size:
+            return
+        self._last_size = (w, h)
+        self._apply_sizes(w, h)
+
+    def _apply_sizes(self, w: int, h: int) -> None:
+        m_w = _pct(w, _PCT_MARGIN_W)
+        m_h = _pct(h, _PCT_MARGIN_H)
+        self.layout().setContentsMargins(m_w, m_h, m_w, m_h)
+        self.layout().setSpacing(m_h)
+
+        rev_h = _pct(h, _PCT_REVELATOR)
+        self._revelator_frame.setFixedHeight(rev_h)
+        self._free.setFixedHeight(max(16, rev_h - 6))
+
+        c_h = _pct(h, _PCT_COMBO)
+        self._backend_combo.setFixedHeight(c_h)
+        self._model_combo.setFixedHeight(c_h)
+        self._refresh_btn.setFixedSize(c_h, c_h)
+
+        base_px = max(8, int(h * _FONT_BASE))
+        dial_px = max(10, int(h * _FONT_DIAL))
+
+        for lbl in (self._zip_glyphs, self._tail, self._free):
+            f = lbl.font()
+            f.setPixelSize(base_px)
+            lbl.setFont(f)
+
+        for d in self._dials:
+            f = d._active.font()
+            f.setPixelSize(dial_px)
+            d._active.setFont(f)
+            prev_px = max(6, int(dial_px * 0.6))
+            for lbl in (d._prev, d._next):
+                f2 = lbl.font()
+                f2.setPixelSize(prev_px)
+                lbl.setFont(f2)
 
     # ============================================================
     # ZIP DISPLAY — updates the revelator from the dials

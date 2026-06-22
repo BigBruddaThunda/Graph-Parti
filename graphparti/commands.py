@@ -102,3 +102,78 @@ class RotateCommand(QUndoCommand):
         for item, op, ot, _np, _nt in self.states:
             item.setPos(op)
             item.setTransform(ot)
+
+
+class ExplodeCommand(QUndoCommand):
+    """Explode compound shapes into individual line segments.
+    Rects → 4 lines. Polylines → N lines. Circles → 36 lines.
+    Preserves pen, brush, data. Undoable."""
+
+    def __init__(self, document, item, new_items) -> None:
+        super().__init__("explode")
+        self.document = document
+        self.item = item
+        self.layer = document.layer_for(item)
+        self.new_items = new_items
+
+    def redo(self) -> None:
+        if self.layer:
+            self.layer.remove_item(self.item)
+            for it in self.new_items:
+                self.layer.add_item(it)
+
+    def undo(self) -> None:
+        if self.layer:
+            for it in self.new_items:
+                self.layer.remove_item(it)
+            self.layer.add_item(self.item)
+
+
+class OverkillCommand(QUndoCommand):
+    """Remove duplicate/overlapping line segments. Keeps one copy of each
+    unique segment (within tolerance). Preserves fills and non-line items."""
+
+    def __init__(self, document, removed) -> None:
+        super().__init__("overkill")
+        self.pairs = [(it, document.layer_for(it)) for it in removed]
+
+    def redo(self) -> None:
+        for it, layer in self.pairs:
+            if layer:
+                layer.remove_item(it)
+
+    def undo(self) -> None:
+        for it, layer in self.pairs:
+            if layer:
+                layer.add_item(it)
+
+
+class ScaleCommand(QUndoCommand):
+    """Full-state undo for scale: captures geometry + pos + transform per item."""
+
+    def __init__(self, snapshots) -> None:
+        super().__init__("scale")
+        self.snapshots = snapshots
+
+    def redo(self) -> None:
+        for item, _old_pos, _old_tf, _old_geom, new_pos, new_tf, new_geom in self.snapshots:
+            item.setPos(new_pos)
+            item.setTransform(new_tf)
+            self._set_geom(item, new_geom)
+
+    def undo(self) -> None:
+        for item, old_pos, old_tf, old_geom, _new_pos, _new_tf, _new_geom in self.snapshots:
+            item.setPos(old_pos)
+            item.setTransform(old_tf)
+            self._set_geom(item, old_geom)
+
+    @staticmethod
+    def _set_geom(item, geom) -> None:
+        if geom is None:
+            return
+        if isinstance(item, QGraphicsLineItem):
+            item.setLine(geom)
+        elif isinstance(item, (QGraphicsRectItem, QGraphicsEllipseItem)):
+            item.setRect(geom)
+        elif isinstance(item, QGraphicsPathItem):
+            item.setPath(geom)

@@ -28,40 +28,37 @@ from graphparti.canvas_widget import CanvasWidget
 from .conductor import Conductor, ConductorWorker
 from .panel import ArchideckPanel
 
-_COCKPIT_W = 560  # ~ the architect's Claude-window width
-
-
 class HostWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Archideck  ·  GRAPH PARTI")
-        # App icon (GP puzzle piece with party hat)
         _icon = os.path.join(os.path.dirname(__file__), os.pardir,
                              "graphparti", "assets", "icons", "gp-icon.png")
         if os.path.exists(_icon):
             self.setWindowIcon(QIcon(_icon))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.canvas = CanvasWidget()       # left — fills
-        self.cockpit = ArchideckPanel()    # right — portrait cockpit
-        # Cockpit zip dial → canvas facets (host wires it; graphparti stays
-        # isolated — it receives plain glyph strings, never imports the cockpit).
+        self.canvas = CanvasWidget()
+        self.cockpit = ArchideckPanel()
         self.cockpit.zip_changed.connect(self.canvas.set_facets)
         self.canvas.set_facets(*self.cockpit.current_zip())
-
-        # Canvas 🍗 handback → cockpit log (the district ties into the Archideck).
         self.canvas.view.handback_requested.connect(self.cockpit.receive_handback)
 
         splitter.addWidget(self.canvas)
         splitter.addWidget(self.cockpit)
-        splitter.setStretchFactor(0, 1)    # extra width goes to the canvas
-        splitter.setStretchFactor(1, 0)    # cockpit keeps its width
+        splitter.setStretchFactor(0, 7)
+        splitter.setStretchFactor(1, 3)
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
 
         self.setCentralWidget(splitter)
-        self.resize(1600, 1000)
-        splitter.setSizes([1600 - _COCKPIT_W, _COCKPIT_W])
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            self.resize(geo.width(), geo.height())
+        else:
+            self.resize(1600, 1000)
+        self.showMaximized()
         self._splitter = splitter
 
         self._conductor = Conductor(backend="ollama")
