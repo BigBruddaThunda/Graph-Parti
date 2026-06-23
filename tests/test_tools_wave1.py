@@ -643,3 +643,23 @@ def test_exercise_parser():
     # Unparseable
     r = parse_exercise("just random words")
     assert r is None
+
+
+def test_rapidfuzz_command_matching():
+    from rapidfuzz import process, fuzz
+    from graphparti.canvas_widget import TOOL_COMMANDS
+
+    # Filter out single-char aliases (they should only match exact)
+    candidates = [cmd for cmd in TOOL_COMMANDS if len(cmd) > 1]
+
+    # Exact should score high
+    match = process.extractOne("mirror", candidates, scorer=fuzz.WRatio)
+    assert match is not None and match[0] == "mirror"
+
+    # Typo should still match
+    match = process.extractOne("mirro", candidates, scorer=fuzz.WRatio, score_cutoff=60)
+    assert match is not None and TOOL_COMMANDS[match[0]] == "mirror"
+
+    # Close misspelling
+    match = process.extractOne("hatc", candidates, scorer=fuzz.WRatio, score_cutoff=60)
+    assert match is not None and TOOL_COMMANDS[match[0]] == "hatch"

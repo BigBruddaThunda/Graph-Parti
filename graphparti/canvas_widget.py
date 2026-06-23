@@ -836,13 +836,25 @@ class CanvasWidget(QWidget):
                 self._tool_actions[tool_key].setChecked(True)
             self._activate_tool(tool_key)
             return
-        # Fuzzy: find first command that starts with the typed text
-        for cmd, key in TOOL_COMMANDS.items():
-            if cmd.startswith(text) and key in self._tools:
+        # Fuzzy match via rapidfuzz (typo-tolerant: "mirro" → "mirror")
+        try:
+            from rapidfuzz import process, fuzz
+            candidates = [cmd for cmd in TOOL_COMMANDS
+                         if TOOL_COMMANDS[cmd] in self._tools and len(cmd) > 1]
+            match = process.extractOne(text, candidates, scorer=fuzz.WRatio, score_cutoff=60)
+            if match:
+                key = TOOL_COMMANDS[match[0]]
                 if key in self._tool_actions:
                     self._tool_actions[key].setChecked(True)
                 self._activate_tool(key)
                 return
+        except ImportError:
+            for cmd, key in TOOL_COMMANDS.items():
+                if cmd.startswith(text) and key in self._tools:
+                    if key in self._tool_actions:
+                        self._tool_actions[key].setChecked(True)
+                    self._activate_tool(key)
+                    return
 
     def _place_text_at_center(self, text: str) -> None:
         """Place a text item at the viewport center."""
