@@ -610,3 +610,36 @@ def test_math_solver_basic():
     # Error handling
     result = solve_expression("definitely_not_valid((((")
     assert result.startswith("Error:")
+
+
+def test_exercise_parser():
+    from graphparti.exercise_parser import parse_exercise
+
+    # Basic sets x reps
+    r = parse_exercise("3x12")
+    assert r is not None
+    assert r["sets"] == 3 and r["reps"] == 12
+
+    # With load
+    r = parse_exercise("3x12 @185")
+    assert r is not None
+    assert r["load_weight"] == 185
+
+    # With RPE
+    r = parse_exercise("3x12 @185 RPE8")
+    assert r is not None
+    assert r["rpe"] == 8
+
+    # Percentage load
+    r = parse_exercise("5x5 @85%")
+    assert r is not None
+    assert r["load_percent"] == 85
+
+    # AMRAP
+    r = parse_exercise("AMRAP 10min")
+    assert r is not None
+    assert r["protocol"] == "AMRAP"
+
+    # Unparseable
+    r = parse_exercise("just random words")
+    assert r is None
