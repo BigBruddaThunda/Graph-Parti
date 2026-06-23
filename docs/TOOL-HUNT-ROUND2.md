@@ -142,3 +142,79 @@ The tool-hunting process becomes a Graph Parti tool. The system mines for its ow
 | Rule engine / FSM | The Operator Bus event system (spec-complete, staged) |
 
 The fresh eyes confirmed the architecture without knowing the architecture. That's convergence.
+
+---
+
+## Substrate Lanes (Lanes 29-36) — the Self-Composing Core
+
+The second round of the fresh-eyes hunt went deeper — into the infrastructure
+that makes the screen self-compose. This is the layer beneath tools: the constraint
+solver + grammar + reactive binding + semantic index that lets every new content
+type automatically know how to present itself.
+
+### Lane 29: Constraint Layout Engine
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **Kiwisolver** | Cassowary constraint solver (C++ w/ Python bindings) | THE layout heartbeat. Incremental re-solve when constraints change. Apple Auto Layout uses this algorithm. Already a Matplotlib dependency. | Easy |
+| **python-constraint** | General CSP solver (backtracking, arc consistency) | For discrete layout choices (which template, which deck layout) | Trivial |
+| **NuCS** | Pure Python constraint solver with global constraints | Complex allocation: "arrange 7 blocks, no overlap, largest = most important, related = adjacent" | Easy |
+| **OR-Tools (Google)** | Industrial constraint programming + optimization | Overkill for simple layouts, essential for complex scheduling (periodization, budget optimization) | Moderate |
+| **squarify** | Treemap rectangle packing | Treemap layouts: week sized by volume, exercises sized by sets | Trivial |
+
+### Lane 30: Reactive Data Layer
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **RxPY** | ReactiveX observable streams | Event composition: content arrives → layout recalculates → rendering updates | Easy |
+| **eventsourcing** | Event sourcing pattern library | Every state change = immutable event. AI reads the log. System can rewind/replay/branch. | Moderate |
+| **watchdog** | File system event monitoring | Auto-load new plugins, detect .parti changes, trigger recomposition | Trivial |
+| **Custom Signal/Observable** | 50-line reactive property pattern | `card.priority = 5` → auto-triggers layout recomposition on displaying boards | Trivial |
+
+### Lane 31: Semantic Indexing
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **RDFlib** | RDF knowledge graph (subject → predicate → object triples) | Index the entire GP universe as a knowledge graph. SPARQL queries. | Moderate |
+| **NetworkX** (deepened role) | Property graph for relationships | Same purpose as RDF but lighter. Nodes = things, edges = relationships, queries = graph traversal. | Trivial |
+| **rtree** | R-tree spatial indexing | "What's near this point?" "What overlaps this rect?" Essential for layout collision detection. | Easy |
+| **FAISS / Annoy** | Vector similarity search | Embed content descriptions, find semantically similar items. "This CAD tutorial is similar to this structural engineering article." | Moderate |
+
+### Lane 32: Grammar-Based Composition
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **Lark** (central role) | EBNF grammar parser | Exercise notation, card rule text, layout specification, search queries, NLP commands — all one consistent approach | Easy |
+| **Tracery** | Text-expansion grammar (Kate Compton) | Procedural text: layout templates, card descriptions, quest text, planting instructions | Trivial |
+| **Context-Free Layout Grammars** | Architecture pattern | `Page → Header Body Footer`, `Body → Column Column`, `Card → Title Content Action`. Grammar rules applied by content type + context. | Moderate (design) |
+
+### Lane 33: Rule Engine
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **durable-rules** | Forward-chaining rule engine (Rete algorithm) | `when content.type == "exercise" AND context.mode == "workout" then use_template("exercise_card")` | Easy |
+| **business-rules** | Simpler rule evaluation, JSON-serializable | Rules live in .parti files | Easy |
+
+### Lane 34: Semantic Zoom / LOD
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **LOD Architecture** | Pattern: each card defines `icon → badge → summary → detail → editor` renderings | Zoom level + available space determines which LOD. Constraint solver handles the rest. | Pure architecture |
+| **squarify** (again) | Treemap as a zoom interface | Zoom into a rectangle → it expands to show next LOD. Nested treemaps = infinite semantic zoom. | Trivial |
+
+### Lane 35: NLP Command Layer
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **spaCy** | Industrial NLP — tokenization, POS, NER, dependency parsing | Parse natural language commands into structured intents | Moderate |
+| **Rasa NLU** | Intent classification + entity extraction | "show this week's workouts" → intent:display, entity:time_range | Moderate |
+| **rapidfuzz** | Fast fuzzy string matching | "bech press" → "Bench Press" in exercise DB. Already needed for Alt-command line. | Trivial |
+
+### Lane 36: AST / Metaprogramming
+| Tool | What | Fit | Wrap |
+|------|------|-----|------|
+| **Python `ast` module** | Parse and generate Python code | Widget factory: NLP → Python → widget. Inspect plugins at load time. | Trivial (stdlib) |
+| **Jinja2** | Template engine | Generate HTML (Kickstarter), character sheets, planner pages, card text | Trivial |
+
+### Research Precedents (Proof It's Buildable)
+| System | What It Proved | Gap Graph Parti Fills |
+|--------|---------------|----------------------|
+| **SUPPLE** (Gajos & Weld 2004) | Constraint-optimization generates UIs from functional specs + device models + user traces | Extends from "adapting to devices" to "adapting to everything" |
+| **Cassowary / Apple Auto Layout** | Incremental constraint solving is fast enough for real-time UI | GP uses this as the spatial resolution engine |
+| **TeX/LaTeX** | Content describes itself, layout engine composes optimally. Knuth's paragraph-breaking is still the best. | Extends from documents to all content types |
+| **Wave Function Collapse** | Local constraint propagation → globally coherent compositions | GP's layout = WFC applied to UI: each position has possible cards, constraints reduce, system collapses to coherent layout |
+| **Morphogenesis in Architecture** (Menges, Sabin) | Biological paradigm: structures grow and adapt to environmental forces | GP's screen is morphogenic — grows based on content forces. Local rules → global order. |
+| **Generative UI** (2024-present) | LLMs can generate UI on-the-fly | GP uses deterministic grammar + constraints, NOT LLM generation. AI reads event logs and suggests, not controls. |
