@@ -162,8 +162,40 @@ conftest.py with `canvas_env` fixture that properly cleans up Qt objects between
 
 **Docs added:** `docs/TOOL-INVENTORY.md` (full 3-domain cross-reference), `docs/TOOL-DRAWERS.md`
 (61-glyph organization map), `docs/TOOL-HUNT-ROUND2.md` (fresh-eyes reconnaissance —
-SymPy/CadQuery/WFC/tcod/Lark/NodeGraphQt/Skyfield + 11 new lanes), wave 1-5 implementation
-plans in `docs/superpowers/plans/`.
+SymPy/CadQuery/WFC/tcod/Lark/NodeGraphQt/Skyfield + 11 new lanes + substrate lanes 29-36),
+`docs/SEARCH-KEYWORDS.md` (500+ keyword master index for SEO/NLP seeding), wave 1-5
+implementation plans in `docs/superpowers/plans/`.
+
+## Built (2026-06-23 · Octave 2.1 — math + NLP + cockpit + color + sound)
+
+**Octave 2.1 — Language Layer:**
+- `graphparti/math_solver.py` — SymPy CAS: `=sqrt(2)` in Alt command → evaluated + placed on canvas
+- `graphparti/exercise_parser.py` — Lark EBNF grammar: `3x12 @185 RPE8` → structured workout data
+- `graphparti/command_parser.py` — Lark command grammar: `array 3 4` → tool + args
+- rapidfuzz fuzzy matching on Alt command line (typo-tolerant: "mirro" → mirror)
+- **Dependencies added:** sympy 1.14.0, lark 1.3.1, rapidfuzz 3.14.5, mpmath 1.3.0
+
+**Cockpit Template Applied:**
+- `archideck/panel.py` rewritten to match the hand-drawn VIEWPORT-TEMPLATE.parti
+- Fixed-proportion zones: Revelator (3.7%) → Terminal (24%) → Middle Ground (48%) → Axis Row (4.3%) → Instruments (20%)
+- Copper borders (#D4935A) on all frames, paper background (#F2EBD8)
+- 12 operator circle buttons along middle ground left edge
+- Z-pad: UP/DOWN red, LEFT/RIGHT/CENTER black
+- Zip dial reels with UP/DOWN click boxes showing active glyph + name
+- Color dial tints the shell background
+
+**8-Color SCL Drafting System:**
+- `SCL_COLORS` dict: 8 emoji colors each carrying default line type + weight
+- Bottom band color glyphs: left-click = activate register, right-click = color picker
+- `_commit` in Tool base respects active line type + weight on all new geometry
+- Canon lifecycle wired: 🔵 thin dashed (layout) → 🟢 medium solid (working) → ⚫ thick solid (commit)
+
+**Procedural Sound Engine (built by sibling session):**
+- `graphparti/sound/` — 7 modules, 1,257 lines, pure synthesis via sounddevice + numpy
+- 5 layers: ambient drone + input ripples + context modulation + tool feedback + zip dial instrument
+- Wired into 10 docking points across canvas/cockpit/host
+- No stored keystrokes, no saved tracks, no silence, no aggression
+- Heart-rate undertone (50-90 BPM modulated by context)
 
 ## Flags
 - **seam:GP-PATH RESOLVED** — `C:\Users\iamja\Desktop\graph-parti` (branch **master**) is
