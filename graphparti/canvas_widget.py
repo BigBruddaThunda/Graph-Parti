@@ -827,6 +827,24 @@ class CanvasWidget(QWidget):
                 self._place_text_at_center(result)
             return
 
+        # Structured command: "array 3 4", "fillet 0.5", "polygon 8"
+        from .command_parser import parse_command
+        parsed = parse_command(raw)
+        if parsed:
+            cmd_name = parsed["command"]
+            cmd_args = parsed["args"]
+            # Resolve command name to tool key
+            tool_key = TOOL_COMMANDS.get(cmd_name)
+            if tool_key and tool_key in self._tools:
+                tool = self._tools[tool_key]
+                # Apply arguments to tool configuration
+                if cmd_args:
+                    self._apply_command_args(tool_key, tool, cmd_args)
+                if tool_key in self._tool_actions:
+                    self._tool_actions[tool_key].setChecked(True)
+                self._activate_tool(tool_key)
+                return
+
         # Tool lookup (existing logic, case-insensitive)
         text = raw.lower()
         # Exact match first
@@ -855,6 +873,34 @@ class CanvasWidget(QWidget):
                         self._tool_actions[key].setChecked(True)
                     self._activate_tool(key)
                     return
+
+    def _apply_command_args(self, key: str, tool, args: list) -> None:
+        """Apply command-line arguments to a tool before activation."""
+        if key == "array_rect" and len(args) >= 2:
+            tool._rows = int(args[0])
+            tool._cols = int(args[1])
+            if len(args) >= 4:
+                tool._row_spacing = float(args[2])
+                tool._col_spacing = float(args[3])
+        elif key == "array_polar" and len(args) >= 1:
+            tool._count = int(args[0])
+            if len(args) >= 2:
+                tool._total_angle = float(args[1])
+        elif key == "fillet" and len(args) >= 1:
+            tool._radius = float(args[0])
+        elif key == "chamfer" and len(args) >= 1:
+            tool._dist1 = float(args[0])
+            tool._dist2 = float(args[1]) if len(args) >= 2 else float(args[0])
+        elif key == "polygon" and len(args) >= 1:
+            tool._sides = max(3, min(12, int(args[0])))
+        elif key == "hatch" and len(args) >= 1:
+            tool._angle = float(args[0])
+            if len(args) >= 2:
+                tool._spacing = float(args[1])
+        elif key == "dim_linear":
+            pass  # no pre-configuration needed
+        elif hasattr(tool, 'set_dimension') and len(args) >= 1:
+            tool.set_dimension(float(args[0]))
 
     def _place_text_at_center(self, text: str) -> None:
         """Place a text item at the viewport center."""

@@ -663,3 +663,22 @@ def test_rapidfuzz_command_matching():
     # Close misspelling
     match = process.extractOne("hatc", candidates, scorer=fuzz.WRatio, score_cutoff=60)
     assert match is not None and TOOL_COMMANDS[match[0]] == "hatch"
+
+
+def test_command_parser():
+    from graphparti.command_parser import parse_command
+
+    r = parse_command("line")
+    assert r == {"command": "line", "args": []}
+
+    r = parse_command("array 3 4")
+    assert r == {"command": "array", "args": [3, 4]}
+
+    r = parse_command("fillet 0.5")
+    assert r == {"command": "fillet", "args": [0.5]}
+
+    r = parse_command("polygon 8")
+    assert r == {"command": "polygon", "args": [8]}
+
+    r = parse_command("")
+    assert r is None
