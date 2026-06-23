@@ -812,11 +812,23 @@ class CanvasWidget(QWidget):
 
     def _on_cmd_enter(self) -> None:
         """Execute the command typed into the Alt command input."""
-        text = self._cmd_input.text().strip().lower()
+        raw = self._cmd_input.text().strip()
         self._cmd_input.setVisible(False)
         self.view.setFocus()
-        if not text:
+        if not raw:
             return
+
+        # Math expression: starts with =
+        if raw.startswith("="):
+            from .math_solver import solve_expression
+            expr = raw[1:].strip()
+            if expr:
+                result = solve_expression(expr)
+                self._place_text_at_center(result)
+            return
+
+        # Tool lookup (existing logic, case-insensitive)
+        text = raw.lower()
         # Exact match first
         tool_key = TOOL_COMMANDS.get(text)
         if tool_key and tool_key in self._tools:
@@ -831,6 +843,22 @@ class CanvasWidget(QWidget):
                     self._tool_actions[key].setChecked(True)
                 self._activate_tool(key)
                 return
+
+    def _place_text_at_center(self, text: str) -> None:
+        """Place a text item at the viewport center."""
+        from PySide6.QtWidgets import QGraphicsTextItem
+        from PySide6.QtGui import QColor, QFont
+        from .tools import _load_vg5000
+        center = self.view.mapToScene(self.view.viewport().rect().center())
+        item = QGraphicsTextItem(text)
+        item.setFont(_load_vg5000(12))
+        item.setDefaultTextColor(QColor("#3C3C3C"))
+        item.setPos(center.x() - item.boundingRect().width() / 2,
+                    center.y() - item.boundingRect().height() / 2)
+        item.setFlag(item.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "math_result")
+        self.view.add_item(item)
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)

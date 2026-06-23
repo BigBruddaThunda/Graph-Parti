@@ -586,3 +586,27 @@ def test_tool_command_lookup():
     assert TOOL_COMMANDS["dim"] == "dim_linear"
     assert TOOL_COMMANDS["h"] == "hatch"
     assert TOOL_COMMANDS["vp"] == "perspective"
+
+
+def test_math_solver_basic():
+    from graphparti.math_solver import solve_expression
+
+    # Arithmetic
+    result = solve_expression("3*5 + 2")
+    assert "17" in result
+
+    # Symbolic
+    result = solve_expression("solve(x**2 - 4, x)")
+    assert "-2" in result and "2" in result
+
+    # Calculus
+    result = solve_expression("diff(sin(x), x)")
+    assert "cos" in result
+
+    # Constants
+    result = solve_expression("sqrt(2)")
+    assert "sqrt(2)" in result or "1.41421" in result
+
+    # Error handling
+    result = solve_expression("definitely_not_valid((((")
+    assert result.startswith("Error:")
