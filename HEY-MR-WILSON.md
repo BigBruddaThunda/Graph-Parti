@@ -128,6 +128,43 @@ via `winmm.dll`, polls at 60fps, only active when window has focus.
 **Build plan ratified** (6 phases): A stabilize → B size math (600x1399, 3:7, percentage
 anchors) → C tool polish → D icon discipline → E engine prototype → F operator panels.
 
+## Built (2026-06-23 · Waves 1-5 tool campaign + 61-drawer organization)
+**22 new tool classes** across 5 waves (tools.py: 17 → 39 classes, ~2100 → 3925 lines):
+
+**Wave 1 — Daily Workflow:** CopyTool, EyedropperTool, ConstructionLineTool,
+MatchPropTool, PolygonTool, ArrayRectTool, ArrayPolarTool.
+
+**Wave 2 — Modify:** JoinTool, FilletTool (radius arc), ChamferTool (straight bevel),
+BreakTool (split at point), PEditTool (polyline vertex editing with drag handles).
+
+**Wave 3 — Annotation + Render:** LinearDimTool (architectural dimensions with oblique
+ticks), LeaderTool (annotation arrows), HatchTool (parallel line pattern fill within
+boundaries — the #1 render request), LINE_TYPES dict + set_line_type() (dashed/center/
+hidden/phantom/dot/dashdot cycle button).
+
+**Wave 4 — Curves + Advanced:** SplineTool (Catmull-Rom → cubic Bezier through all points),
+crossing select (right-to-left = green, touches items), StretchTool (partial vertex move),
+MeasureTool (persistent distance annotations).
+
+**Wave 5 — Infrastructure:** Named layers (add/remove/reorder beyond default 3),
+LINE_WEIGHTS dict + set_line_weight() (ISO pen ladder cycle button), PerspectiveTool
+(vanishing point placement with 24 radiating guide rays), BlockSaveTool + BlockInsertTool
+(reusable symbol groups).
+
+**61-Drawer Tool Organization:** Every SCL glyph on the bottom row is now a tool drawer.
+Right-click = popup menu of tools in that drawer. Left-click = glyph character (current
+behavior). `TOOL_DRAWERS` dict maps 27 glyphs to tool lists. Tools overlap across drawers
+by design (mirror lives in 🪞 AND 🏟). Alt-key command line: tap Alt → floating input →
+type tool name (fuzzy match) → Enter activates. `TOOL_COMMANDS` dict: 60+ aliases.
+
+**Test infrastructure:** 25 headless tests (offscreen QApplication), all passing in <1s.
+conftest.py with `canvas_env` fixture that properly cleans up Qt objects between tests.
+
+**Docs added:** `docs/TOOL-INVENTORY.md` (full 3-domain cross-reference), `docs/TOOL-DRAWERS.md`
+(61-glyph organization map), `docs/TOOL-HUNT-ROUND2.md` (fresh-eyes reconnaissance —
+SymPy/CadQuery/WFC/tcod/Lark/NodeGraphQt/Skyfield + 11 new lanes), wave 1-5 implementation
+plans in `docs/superpowers/plans/`.
+
 ## Flags
 - **seam:GP-PATH RESOLVED** — `C:\Users\iamja\Desktop\graph-parti` (branch **master**) is
   the **live build canvas**. `C:\Users\iamja\Documents\graph parti\Graph-Parti` (branch
