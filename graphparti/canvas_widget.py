@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from .canvas_view import CanvasView
 from .document import Document
+from .sound import SoundEngine
 from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, BlockInsertTool, BlockSaveTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
@@ -135,6 +136,7 @@ class ColorPalette(QWidget):
 class DraggableEmojiButton(QToolButton):
     """Emoji button: click = insert text, drag = place a book onto the canvas."""
     emoji_clicked = Signal(str)
+    emoji_right_clicked = Signal(str)
     emoji_dragged = Signal(str)
 
     def __init__(self, glyph: str, parent=None) -> None:
@@ -149,6 +151,10 @@ class DraggableEmojiButton(QToolButton):
         )
 
     def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            self.emoji_right_clicked.emit(self._glyph)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start = event.position().toPoint()
         super().mousePressEvent(event)
@@ -361,15 +367,31 @@ class CanvasWidget(QWidget):
             " background:#4a4a4a; color:white; }"
             "QToolButton:hover { background:#666; }"
         )
+        _color_glyphs = set(SCL_COLORS.keys())
         all_glyphs = []
         for _label, glyphs in _SCL_GROUPS:
             all_glyphs.extend(glyphs)
+        self._scl_band_btns = {}
         for glyph in all_glyphs:
             btn = DraggableEmojiButton(glyph)
             btn.setFixedSize(20, 20)
-            btn.setStyleSheet(_btn_ss)
-            btn.emoji_clicked.connect(self._on_emoji_band_click)
+            if glyph in _color_glyphs:
+                props = SCL_COLORS[glyph]
+                btn.setStyleSheet(
+                    f"QToolButton {{ font-size:12px; padding:0;"
+                    f" background:{props['hex']}; border:2px solid #D4935A;"
+                    f" border-radius:10px; color:white; }}"
+                    f"QToolButton:hover {{ border:2px solid #fff; }}"
+                )
+                btn.emoji_clicked.connect(
+                    lambda g=glyph: self._on_scl_color_selected(g))
+                btn.emoji_right_clicked.connect(self._on_color_right_click)
+            else:
+                btn.setStyleSheet(_btn_ss)
+                btn.emoji_clicked.connect(self._on_emoji_band_click)
+                btn.emoji_right_clicked.connect(self._on_emoji_right_click)
             scl_lay.addWidget(btn)
+            self._scl_band_btns[glyph] = btn
         # 62nd: ± symbol
         pm_btn = DraggableEmojiButton("±")
         pm_btn.setFixedSize(20, 20)
@@ -432,6 +454,10 @@ class CanvasWidget(QWidget):
         district_act.setShortcut(QKeySequence("Ctrl+Shift+D"))
         district_act.triggered.connect(self._save_to_district)
         self.addAction(district_act)
+
+        self._sound_engine = SoundEngine()
+        self.view._sound_engine = self._sound_engine
+        self._sound_engine.start()
 
     def set_facets(self, operator=None, axis=None, order=None, color=None) -> None:
         """Host-callable: push the cockpit dial's zip onto the canvas."""
@@ -735,6 +761,49 @@ class CanvasWidget(QWidget):
     def _on_emoji_band_click(self, glyph: str) -> None:
         """Bottom-band emoji click → insert into text composer (63rd box)."""
         self._text_composer.insert_glyph(glyph)
+
+    def _on_emoji_right_click(self, glyph: str) -> None:
+        """Right-click non-color glyph → tool drawer popup."""
+        drawer = TOOL_DRAWERS.get(glyph)
+        if not drawer:
+            return
+        menu = QMenu(self)
+        for tool_key, label in drawer:
+            if tool_key in self._tools:
+                act = menu.addAction(label)
+                act.triggered.connect(
+                    lambda _ch=False, k=tool_key: self._activate_tool(k))
+        if menu.actions():
+            btn = self.sender()
+            if btn:
+                menu.popup(btn.mapToGlobal(btn.rect().topLeft()))
+
+    def _on_color_right_click(self, glyph: str) -> None:
+        """Right-click a color glyph → color picker to customize."""
+        props = SCL_COLORS.get(glyph)
+        if not props:
+            return
+        current = QColor(props["hex"])
+        color = QColorDialog.getColor(current, self, f"Customize {props['name']} color")
+        if color.isValid():
+            props["hex"] = color.name()
+            btn = self._scl_band_btns.get(glyph)
+            if btn:
+                btn.setStyleSheet(
+                    f"QToolButton {{ font-size:12px; padding:0;"
+                    f" background:{color.name()}; border:2px solid #D4935A;"
+                    f" border-radius:10px; color:white; }}"
+                    f"QToolButton:hover {{ border:2px solid #fff; }}"
+                )
+            tb_btn = getattr(self, '_scl_color_btns', {}).get(glyph)
+            if tb_btn:
+                tb_btn.setStyleSheet(
+                    f"QToolButton {{ background: {color.name()}; border: 2px solid #D4935A;"
+                    f" font-size: 14px; border-radius: 3px; }}"
+                    f"QToolButton:checked {{ border: 3px solid #000; }}"
+                )
+            if getattr(self, '_active_scl_color', None) == glyph:
+                self.view.set_stroke(color.name())
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)
