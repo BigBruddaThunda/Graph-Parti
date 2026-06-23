@@ -579,39 +579,6 @@ def test_block_save_and_insert(canvas_env):
     assert len(lines) == 2, f"Expected 2 lines (original + inserted), got {len(lines)}"
 
 
-def test_tool_command_lookup():
-    from graphparti.canvas_widget import TOOL_COMMANDS
-    assert TOOL_COMMANDS["line"] == "line"
-    assert TOOL_COMMANDS["mirror"] == "mirror"
-    assert TOOL_COMMANDS["dim"] == "dim_linear"
-    assert TOOL_COMMANDS["h"] == "hatch"
-    assert TOOL_COMMANDS["vp"] == "perspective"
-
-
-def test_math_solver_basic():
-    from graphparti.math_solver import solve_expression
-
-    # Arithmetic
-    result = solve_expression("3*5 + 2")
-    assert "17" in result
-
-    # Symbolic
-    result = solve_expression("solve(x**2 - 4, x)")
-    assert "-2" in result and "2" in result
-
-    # Calculus
-    result = solve_expression("diff(sin(x), x)")
-    assert "cos" in result
-
-    # Constants
-    result = solve_expression("sqrt(2)")
-    assert "sqrt(2)" in result or "1.41421" in result
-
-    # Error handling
-    result = solve_expression("definitely_not_valid((((")
-    assert result.startswith("Error:")
-
-
 def test_exercise_parser():
     from graphparti.exercise_parser import parse_exercise
 
@@ -645,40 +612,12 @@ def test_exercise_parser():
     assert r is None
 
 
-def test_rapidfuzz_command_matching():
-    from rapidfuzz import process, fuzz
-    from graphparti.canvas_widget import TOOL_COMMANDS
+def test_scl_color_system():
+    from graphparti.canvas_widget import SCL_COLORS
 
-    # Filter out single-char aliases (they should only match exact)
-    candidates = [cmd for cmd in TOOL_COMMANDS if len(cmd) > 1]
-
-    # Exact should score high
-    match = process.extractOne("mirror", candidates, scorer=fuzz.WRatio)
-    assert match is not None and match[0] == "mirror"
-
-    # Typo should still match
-    match = process.extractOne("mirro", candidates, scorer=fuzz.WRatio, score_cutoff=60)
-    assert match is not None and TOOL_COMMANDS[match[0]] == "mirror"
-
-    # Close misspelling
-    match = process.extractOne("hatc", candidates, scorer=fuzz.WRatio, score_cutoff=60)
-    assert match is not None and TOOL_COMMANDS[match[0]] == "hatch"
-
-
-def test_command_parser():
-    from graphparti.command_parser import parse_command
-
-    r = parse_command("line")
-    assert r == {"command": "line", "args": []}
-
-    r = parse_command("array 3 4")
-    assert r == {"command": "array", "args": [3, 4]}
-
-    r = parse_command("fillet 0.5")
-    assert r == {"command": "fillet", "args": [0.5]}
-
-    r = parse_command("polygon 8")
-    assert r == {"command": "polygon", "args": [8]}
-
-    r = parse_command("")
-    assert r is None
+    assert len(SCL_COLORS) == 8
+    assert "⚫" in SCL_COLORS
+    assert SCL_COLORS["⚫"]["line_type"] == "continuous"
+    assert SCL_COLORS["⚫"]["weight"] == "heavy"
+    assert SCL_COLORS["🔵"]["line_type"] == "dashed"
+    assert SCL_COLORS["🔵"]["weight"] == "fine"

@@ -47,87 +47,16 @@ _SCL_GROUPS = [
             "🌋", "🪞", "🗿", "🛠", "🧩", "🪫", "🏖", "🏗", "🧬", "🚂", "🔠"]),
 ]
 
-# Line stroke colors (row 1 = structure/primary, row 2 = accent/dark)
-_LINE_PALETTE = [
-    "#3C3C3C", "#1A1A1A", "#666666", "#999999",
-    "#C1140C", "#2464E5", "#348219", "#9255E5",
-    "#F57E16", "#F7B731", "#00AAAA", "#FF69B4",
-    "#8B4513", "#006400", "#191970", "#800080",
-]
-
-# Maps each SCL glyph to the tools accessible from its drawer (right-click popup).
-TOOL_DRAWERS: dict[str, list[tuple[str, str]]] = {
-    "📍": [("xline", "Construction Line"), ("polygon", "Polygon"), ("perspective", "Perspective VP")],
-    "🧲": [("eyedropper", "Eyedropper"), ("matchprop", "Match Properties"), ("block_save", "Save Block")],
-    "🤌": [("line", "Line"), ("rect", "Rect"), ("circle", "Circle"), ("polyline", "Polyline"),
-           ("arc", "Arc"), ("ellipse", "Ellipse"), ("spline", "Spline")],
-    "👀": [("select", "Select"), ("measure", "Measure")],
-    "🧸": [("copy", "Copy"), ("block_insert", "Insert Block"), ("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
-    "🥨": [("extend", "Extend"), ("stretch", "Stretch"), ("scale", "Scale"), ("offset", "Offset")],
-    "🦢": [("join", "Join"), ("fillet", "Fillet"), ("chamfer", "Chamfer"), ("pedit", "Edit Polyline")],
-    "🦉": [("dim_linear", "Dimension"), ("leader", "Leader"), ("measure", "Measure")],
-    "🪵": [("hatch", "Hatch"), ("paint", "Paint")],
-    "✒️": [("word", "Word Text"), ("cell", "Cell Text")],
-    "🔨": [("trim", "Trim"), ("break_at", "Break"), ("divide", "Divide")],
-    "🌹": [],  # line types/weights cycle buttons handle this
-    "🪞": [("mirror", "Mirror")],
-    "🛠": [("offset", "Offset"), ("divide", "Divide"), ("rotate", "Rotate")],
-    "🧩": [("join", "Join"), ("pedit", "Edit Polyline")],
-    "🏗": [("xline", "Construction Line"), ("perspective", "Perspective VP")],
-    "🧬": [("spline", "Spline")],
-    "🚂": [("copy", "Copy"), ("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
-    "🔠": [("word", "Word Text"), ("cell", "Cell Text")],
-    "🌋": [],  # explode/overkill are keyboard shortcuts, not toolbar tools
-    "🪜": [("scale", "Scale")],
-    "🎱": [("paint", "Paint"), ("eyedropper", "Eyedropper")],
-    "🔢": [("dim_linear", "Dimension")],
-    "🧈": [("fillet", "Fillet"), ("chamfer", "Chamfer"), ("spline", "Spline")],
-    "🎼": [("array_rect", "Array Rect"), ("array_polar", "Array Polar")],
-    "🏟": [("array_rect", "Array Rect"), ("copy", "Copy"), ("mirror", "Mirror"), ("scale", "Scale"), ("rotate", "Rotate")],
-    "🐂": [("line", "Line"), ("select", "Select"), ("paint", "Paint")],
-}
-
-# Aliases for the Alt-key command input.  Keys are what the user types;
-# values are the canonical tool key used in self._tools / self._tool_actions.
-TOOL_COMMANDS: dict[str, str] = {
-    "line": "line", "l": "line",
-    "rect": "rect", "r": "rect", "rectangle": "rect",
-    "circle": "circle", "c": "circle",
-    "polyline": "polyline", "p": "polyline", "pline": "polyline",
-    "arc": "arc", "a": "arc",
-    "ellipse": "ellipse",
-    "polygon": "polygon",
-    "spline": "spline", "curve": "spline", "bezier": "spline",
-    "select": "select", "v": "select",
-    "trim": "trim", "t": "trim",
-    "extend": "extend",
-    "offset": "offset", "o": "offset",
-    "divide": "divide", "d": "divide",
-    "rotate": "rotate",
-    "mirror": "mirror", "m": "mirror",
-    "scale": "scale", "s": "scale",
-    "paint": "paint", "b": "paint", "fill": "paint",
-    "word": "word", "text": "word",
-    "cell": "cell",
-    "copy": "copy",
-    "eyedropper": "eyedropper", "pick": "eyedropper", "sample": "eyedropper",
-    "xline": "xline", "construction": "xline",
-    "matchprop": "matchprop", "match": "matchprop",
-    "hatch": "hatch", "h": "hatch",
-    "dim": "dim_linear", "dimension": "dim_linear",
-    "leader": "leader",
-    "measure": "measure",
-    "join": "join", "j": "join",
-    "fillet": "fillet", "f": "fillet",
-    "chamfer": "chamfer",
-    "break": "break_at",
-    "pedit": "pedit",
-    "stretch": "stretch",
-    "perspective": "perspective", "vp": "perspective",
-    "blocksave": "block_save", "bsave": "block_save",
-    "blockinsert": "block_insert", "binsert": "block_insert", "insert": "block_insert",
-    "array": "array_rect", "arrayrect": "array_rect",
-    "arraypolar": "array_polar",
+# 8-color SCL drafting register — each color carries default line type + weight
+SCL_COLORS = {
+    "⚫": {"hex": "#3C3C3C", "name": "Order",        "line_type": "continuous", "weight": "heavy"},
+    "🟢": {"hex": "#348219", "name": "Growth",       "line_type": "continuous", "weight": "medium"},
+    "🔵": {"hex": "#2464E5", "name": "Planning",     "line_type": "dashed",     "weight": "fine"},
+    "🟣": {"hex": "#9255E5", "name": "Magnificence", "line_type": "dashdot",    "weight": "light"},
+    "🔴": {"hex": "#C1140C", "name": "Passion",      "line_type": "continuous", "weight": "bold"},
+    "🟠": {"hex": "#F57E16", "name": "Connection",   "line_type": "continuous", "weight": "medium"},
+    "🟡": {"hex": "#F7B731", "name": "Play",         "line_type": "dot",        "weight": "fine"},
+    "⚪": {"hex": "#F5F5DC", "name": "Eudaimonia",   "line_type": "dashed",     "weight": "hairline"},
 }
 
 
@@ -207,7 +136,6 @@ class DraggableEmojiButton(QToolButton):
     """Emoji button: click = insert text, drag = place a book onto the canvas."""
     emoji_clicked = Signal(str)
     emoji_dragged = Signal(str)
-    emoji_right_clicked = Signal(str)
 
     def __init__(self, glyph: str, parent=None) -> None:
         super().__init__(parent)
@@ -221,10 +149,6 @@ class DraggableEmojiButton(QToolButton):
         )
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.RightButton:
-            self.emoji_right_clicked.emit(self._glyph)
-            event.accept()
-            return
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start = event.position().toPoint()
         super().mousePressEvent(event)
@@ -445,7 +369,6 @@ class CanvasWidget(QWidget):
             btn.setFixedSize(20, 20)
             btn.setStyleSheet(_btn_ss)
             btn.emoji_clicked.connect(self._on_emoji_band_click)
-            btn.emoji_right_clicked.connect(self._on_emoji_right_click)
             scl_lay.addWidget(btn)
         # 62nd: ± symbol
         pm_btn = DraggableEmojiButton("±")
@@ -459,19 +382,6 @@ class CanvasWidget(QWidget):
         self._text_composer.setMinimumWidth(120)
         scl_lay.addWidget(self._text_composer, 1)
         layout.addWidget(scl_band)
-
-        # ── Alt-key command input ──
-        self._cmd_input = QLineEdit(self)
-        self._cmd_input.setFixedHeight(24)
-        self._cmd_input.setPlaceholderText("Type tool name...")
-        self._cmd_input.setStyleSheet(
-            "background:#1a1a1a; color:#fff; border:1px solid #9255E5;"
-            " padding:2px 8px; font-size:12px; font-family:monospace;"
-        )
-        self._cmd_input.setVisible(False)
-        self._cmd_input.returnPressed.connect(self._on_cmd_enter)
-        self._cmd_input.installEventFilter(self)
-        layout.addWidget(self._cmd_input)
 
         # ── Signals + init ──
         self._last_coord = "X 0  Y 0"
@@ -666,14 +576,34 @@ class CanvasWidget(QWidget):
         self._fill_toggle.toggled.connect(self._on_fill_toggled)
         tb.addAction(self._fill_toggle)
 
-        # ── 16-swatch line color palette (2×8) ──
+        # ── 8-color SCL drafting bar ──
         tb.addSeparator()
         line_arrow = QAction("Lines →", self)
         line_arrow.setEnabled(False)
         tb.addAction(line_arrow)
-        self._line_palette = ColorPalette(colors=_LINE_PALETTE)
-        tb.addWidget(self._line_palette)
-        self._line_palette.color_selected.connect(self._on_line_color_selected)
+        self._color_bar = QWidget()
+        color_lay = QHBoxLayout(self._color_bar)
+        color_lay.setContentsMargins(2, 2, 2, 2)
+        color_lay.setSpacing(2)
+        self._scl_color_btns = {}
+        for glyph, props in SCL_COLORS.items():
+            btn = QToolButton()
+            btn.setText(glyph)
+            btn.setFixedSize(28, 28)
+            btn.setCheckable(True)
+            btn.setToolTip(f"{props['name']} — {props['line_type']} {props['weight']}")
+            btn.setStyleSheet(
+                f"QToolButton {{ background: {props['hex']}; border: 2px solid #D4935A;"
+                f" font-size: 14px; border-radius: 3px; }}"
+                f"QToolButton:checked {{ border: 3px solid #000; }}"
+            )
+            btn.clicked.connect(lambda _ch=False, g=glyph: self._on_scl_color_selected(g))
+            color_lay.addWidget(btn)
+            self._scl_color_btns[glyph] = btn
+        tb.addWidget(self._color_bar)
+        # Default to ⚫ Order (commit)
+        self._active_scl_color = "⚫"
+        self._scl_color_btns["⚫"].setChecked(True)
 
         # ── Line type cycle ──
         tb.addSeparator()
@@ -722,6 +652,52 @@ class CanvasWidget(QWidget):
             self._tool_actions["line"].setChecked(True)
             self._activate_tool("line")
 
+    def _on_scl_color_selected(self, glyph: str) -> None:
+        """Select an SCL color — sets stroke color, line type, and line weight all at once."""
+        props = SCL_COLORS.get(glyph)
+        if not props:
+            return
+        self._active_scl_color = glyph
+        # Uncheck all, check selected
+        for g, btn in self._scl_color_btns.items():
+            btn.setChecked(g == glyph)
+        # Set stroke color
+        self.view.set_stroke(props["hex"])
+        # Set line type
+        type_name = props["line_type"]
+        self._line_type_idx = list(LINE_TYPES.keys()).index(type_name) if type_name in LINE_TYPES else 0
+        labels = {"continuous": "——", "dashed": "- -", "hidden": "··",
+                  "center": "—·—", "phantom": "—··", "dot": "····", "dashdot": "—·"}
+        self._line_type_btn.setText(labels.get(type_name, type_name))
+        self._line_type_btn.setToolTip(f"Line type: {type_name}")
+        self.view._active_line_type = type_name
+        # Set line weight
+        weight_name = props["weight"]
+        self._line_weight_idx = list(LINE_WEIGHTS.keys()).index(weight_name) if weight_name in LINE_WEIGHTS else 3
+        wlabels = {"hairline": "H", "fine": "F", "light": "Lt",
+                   "medium": "M", "bold": "B", "heavy": "Hv", "x-heavy": "XH"}
+        self._weight_btn.setText(wlabels.get(weight_name, weight_name[:2]))
+        self._weight_btn.setToolTip(f"Weight: {weight_name}")
+        self.view._active_line_weight = LINE_WEIGHTS.get(weight_name, 0.5)
+        # Apply to selected items
+        for item in self.view.scene().selectedItems():
+            if hasattr(item, 'setPen'):
+                from PySide6.QtGui import QPen
+                pen = QPen(item.pen())
+                pen.setColor(QColor(props["hex"]))
+                pen.setWidthF(LINE_WEIGHTS.get(weight_name, 0.5))
+                # Set dash pattern
+                from PySide6.QtCore import Qt as QtCore_Qt
+                pattern = LINE_TYPES.get(type_name)
+                if pattern is None:
+                    pen.setStyle(QtCore_Qt.PenStyle.SolidLine)
+                elif type_name == "dashed":
+                    pen.setStyle(QtCore_Qt.PenStyle.DashLine)
+                else:
+                    pen.setStyle(QtCore_Qt.PenStyle.CustomDashLine)
+                    pen.setDashPattern([float(v) for v in pattern])
+                item.setPen(pen)
+
     def _cycle_line_type(self) -> None:
         names = list(LINE_TYPES.keys())
         self._line_type_idx = (self._line_type_idx + 1) % len(names)
@@ -759,164 +735,6 @@ class CanvasWidget(QWidget):
     def _on_emoji_band_click(self, glyph: str) -> None:
         """Bottom-band emoji click → insert into text composer (63rd box)."""
         self._text_composer.insert_glyph(glyph)
-
-    def _on_emoji_right_click(self, glyph: str) -> None:
-        """Right-click on SCL band glyph → popup menu of tools in that drawer."""
-        drawer = TOOL_DRAWERS.get(glyph)
-        if not drawer:
-            return
-        menu = QMenu(self)
-        for tool_key, label in drawer:
-            if tool_key in self._tools:
-                act = menu.addAction(label)
-                act.triggered.connect(
-                    lambda _ch=False, k=tool_key: self._activate_drawer_tool(k)
-                )
-        if menu.actions():
-            btn = self.sender()
-            if btn:
-                menu.popup(btn.mapToGlobal(btn.rect().topLeft()))
-
-    def _activate_drawer_tool(self, key: str) -> None:
-        """Activate a tool chosen from a right-click drawer popup."""
-        if key in self._tool_actions:
-            self._tool_actions[key].setChecked(True)
-        self._activate_tool(key)
-
-    # ─────────────────────────────────────────────────── Alt command input
-
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Alt and not event.isAutoRepeat():
-            if not self._cmd_input.isVisible():
-                self._cmd_input.setVisible(True)
-                self._cmd_input.setFocus()
-                self._cmd_input.clear()
-                event.accept()
-                return
-        if event.key() == Qt.Key.Key_Escape and self._cmd_input.isVisible():
-            self._cmd_input.setVisible(False)
-            self.view.setFocus()
-            event.accept()
-            return
-        super().keyPressEvent(event)
-
-    def eventFilter(self, obj, event) -> bool:
-        """Dismiss command input on Escape when it has focus."""
-        from PySide6.QtCore import QEvent
-        if obj is self._cmd_input and event.type() == QEvent.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Escape:
-                self._cmd_input.setVisible(False)
-                self.view.setFocus()
-                return True
-        return super().eventFilter(obj, event)
-
-    def _on_cmd_enter(self) -> None:
-        """Execute the command typed into the Alt command input."""
-        raw = self._cmd_input.text().strip()
-        self._cmd_input.setVisible(False)
-        self.view.setFocus()
-        if not raw:
-            return
-
-        # Math expression: starts with =
-        if raw.startswith("="):
-            from .math_solver import solve_expression
-            expr = raw[1:].strip()
-            if expr:
-                result = solve_expression(expr)
-                self._place_text_at_center(result)
-            return
-
-        # Structured command: "array 3 4", "fillet 0.5", "polygon 8"
-        from .command_parser import parse_command
-        parsed = parse_command(raw)
-        if parsed:
-            cmd_name = parsed["command"]
-            cmd_args = parsed["args"]
-            # Resolve command name to tool key
-            tool_key = TOOL_COMMANDS.get(cmd_name)
-            if tool_key and tool_key in self._tools:
-                tool = self._tools[tool_key]
-                # Apply arguments to tool configuration
-                if cmd_args:
-                    self._apply_command_args(tool_key, tool, cmd_args)
-                if tool_key in self._tool_actions:
-                    self._tool_actions[tool_key].setChecked(True)
-                self._activate_tool(tool_key)
-                return
-
-        # Tool lookup (existing logic, case-insensitive)
-        text = raw.lower()
-        # Exact match first
-        tool_key = TOOL_COMMANDS.get(text)
-        if tool_key and tool_key in self._tools:
-            if tool_key in self._tool_actions:
-                self._tool_actions[tool_key].setChecked(True)
-            self._activate_tool(tool_key)
-            return
-        # Fuzzy match via rapidfuzz (typo-tolerant: "mirro" → "mirror")
-        try:
-            from rapidfuzz import process, fuzz
-            candidates = [cmd for cmd in TOOL_COMMANDS
-                         if TOOL_COMMANDS[cmd] in self._tools and len(cmd) > 1]
-            match = process.extractOne(text, candidates, scorer=fuzz.WRatio, score_cutoff=60)
-            if match:
-                key = TOOL_COMMANDS[match[0]]
-                if key in self._tool_actions:
-                    self._tool_actions[key].setChecked(True)
-                self._activate_tool(key)
-                return
-        except ImportError:
-            for cmd, key in TOOL_COMMANDS.items():
-                if cmd.startswith(text) and key in self._tools:
-                    if key in self._tool_actions:
-                        self._tool_actions[key].setChecked(True)
-                    self._activate_tool(key)
-                    return
-
-    def _apply_command_args(self, key: str, tool, args: list) -> None:
-        """Apply command-line arguments to a tool before activation."""
-        if key == "array_rect" and len(args) >= 2:
-            tool._rows = int(args[0])
-            tool._cols = int(args[1])
-            if len(args) >= 4:
-                tool._row_spacing = float(args[2])
-                tool._col_spacing = float(args[3])
-        elif key == "array_polar" and len(args) >= 1:
-            tool._count = int(args[0])
-            if len(args) >= 2:
-                tool._total_angle = float(args[1])
-        elif key == "fillet" and len(args) >= 1:
-            tool._radius = float(args[0])
-        elif key == "chamfer" and len(args) >= 1:
-            tool._dist1 = float(args[0])
-            tool._dist2 = float(args[1]) if len(args) >= 2 else float(args[0])
-        elif key == "polygon" and len(args) >= 1:
-            tool._sides = max(3, min(12, int(args[0])))
-        elif key == "hatch" and len(args) >= 1:
-            tool._angle = float(args[0])
-            if len(args) >= 2:
-                tool._spacing = float(args[1])
-        elif key == "dim_linear":
-            pass  # no pre-configuration needed
-        elif hasattr(tool, 'set_dimension') and len(args) >= 1:
-            tool.set_dimension(float(args[0]))
-
-    def _place_text_at_center(self, text: str) -> None:
-        """Place a text item at the viewport center."""
-        from PySide6.QtWidgets import QGraphicsTextItem
-        from PySide6.QtGui import QColor, QFont
-        from .tools import _load_vg5000
-        center = self.view.mapToScene(self.view.viewport().rect().center())
-        item = QGraphicsTextItem(text)
-        item.setFont(_load_vg5000(12))
-        item.setDefaultTextColor(QColor("#3C3C3C"))
-        item.setPos(center.x() - item.boundingRect().width() / 2,
-                    center.y() - item.boundingRect().height() / 2)
-        item.setFlag(item.GraphicsItemFlag.ItemIsSelectable, True)
-        item.setData(0, {"zip": "", "note": ""})
-        item.setData(1, "math_result")
-        self.view.add_item(item)
 
     def _set_ortho_angle(self, angle: int) -> None:
         self.view.set_ortho_angle(angle)

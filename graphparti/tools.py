@@ -240,7 +240,21 @@ class Tool:
         return QPointF(p)
 
     def _commit(self, item: QGraphicsItem) -> None:
-        item.setPen(make_pen(self.canvas.current_stroke(), DEFAULT_WIDTH))
+        color = self.canvas.current_stroke()
+        weight = getattr(self.canvas, '_active_line_weight', DEFAULT_WIDTH)
+        pen = make_pen(color, weight)
+        # Apply active line type
+        type_name = getattr(self.canvas, '_active_line_type', None)
+        if type_name:
+            pattern = LINE_TYPES.get(type_name)
+            if pattern is None:
+                pen.setStyle(Qt.PenStyle.SolidLine)
+            elif type_name == "dashed":
+                pen.setStyle(Qt.PenStyle.DashLine)
+            else:
+                pen.setStyle(Qt.PenStyle.CustomDashLine)
+                pen.setDashPattern([float(v) for v in pattern])
+        item.setPen(pen)
         fill = getattr(self.canvas, '_fill_color', None)
         if fill is not None and hasattr(item, 'setBrush'):
             c = QColor(fill)
