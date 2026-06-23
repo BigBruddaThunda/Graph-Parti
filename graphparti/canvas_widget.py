@@ -580,8 +580,10 @@ class CanvasWidget(QWidget):
         # Keep keyboard shortcuts via hidden actions
         undo_act = self.undo_stack.createUndoAction(self, "Undo")
         undo_act.setShortcut(QKeySequence.StandardKey.Undo)
+        undo_act.triggered.connect(lambda: self._sound_engine and self._sound_engine.feedback.undo())
         redo_act = self.undo_stack.createRedoAction(self, "Redo")
         redo_act.setShortcut(QKeySequence.StandardKey.Redo)
+        redo_act.triggered.connect(lambda: self._sound_engine and self._sound_engine.feedback.redo())
         self.addAction(undo_act)
         self.addAction(redo_act)
 
@@ -655,6 +657,8 @@ class CanvasWidget(QWidget):
 
     def _activate_tool(self, key: str) -> None:
         self.view.set_tool(self._tools[key])
+        if self._sound_engine is not None:
+            self._sound_engine.on_tool_activate(key)
 
     def _on_color_selected(self, color: QColor) -> None:
         paint = self._tools.get("paint")
@@ -829,6 +833,8 @@ class CanvasWidget(QWidget):
                 return
             self._file_path = path
         self.document.save_json(self._file_path)
+        if self._sound_engine is not None:
+            self._sound_engine.feedback.save_latch()
         self._status.setText(f"Saved: {self._file_path}")
 
     def _open(self) -> None:
@@ -898,6 +904,8 @@ class CanvasWidget(QWidget):
         else:  # trace / both — drawing goes to trace
             self.document.active_index = 1
         self._refresh_layer_buttons()
+        if self._sound_engine is not None:
+            self._sound_engine.on_context_change({"layer": mode})
 
     def _toggle_layer_visibility_by_name(self, name: str) -> None:
         idx = 0 if name == "parti" else 1

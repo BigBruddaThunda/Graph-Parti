@@ -724,6 +724,12 @@ class CanvasView(QGraphicsView):
 
     # -------------------------------------------------------- mouse: pan + tool
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        se = getattr(self, '_sound_engine', None)
+        if se is not None:
+            pos = event.position()
+            se.on_mouse_click(pos.x(), pos.y(), str(event.button()))
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._gesture_origin = self.mapToScene(event.position().toPoint())
         self._dim_opened_this_press = False
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = True
@@ -816,6 +822,16 @@ class CanvasView(QGraphicsView):
             return
         if event.button() == Qt.MouseButton.LeftButton and self._tool_active():
             self.active_tool.on_release(self._scene_pos(event))
+            se = getattr(self, '_sound_engine', None)
+            origin = getattr(self, '_gesture_origin', None)
+            if se is not None and origin is not None:
+                end = self.mapToScene(event.position().toPoint())
+                dx, dy = end.x() - origin.x(), end.y() - origin.y()
+                import math
+                length = math.hypot(dx, dy)
+                angle = math.atan2(dy, dx)
+                if length > 5:
+                    se.on_gesture(length, angle)
             self.viewport().update()
             event.accept()
             return
@@ -837,6 +853,10 @@ class CanvasView(QGraphicsView):
 
     # ------------------------------------------------------------------- keys
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        se = getattr(self, '_sound_engine', None)
+        if se is not None:
+            se.on_keystroke(event.text() or "")
+
         # Ctrl-V: paste geometry (if copied) or image from clipboard
         if event.key() == Qt.Key.Key_V and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             if hasattr(self, '_geometry_clipboard') and self._geometry_clipboard:

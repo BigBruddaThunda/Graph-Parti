@@ -17,3 +17,8 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
         self.canvas = CanvasWidget(self)
         self.setCentralWidget(self.canvas)
+
+    def closeEvent(self, event):
+        if hasattr(self.canvas, '_sound_engine'):
+            self.canvas._sound_engine.stop()
+        super().closeEvent(event)

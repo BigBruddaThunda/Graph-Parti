@@ -745,6 +745,15 @@ class ArchideckPanel(QWidget):
         self._zip_glyphs.setText(f"[ {glyphs} ]")
         op, ax, orr, col = ((d.value() or "") for d in self._dials)
         self.zip_changed.emit(op, ax, orr, col)
+        se = getattr(self, '_sound_engine', None)
+        if se is not None:
+            prev = getattr(self, '_prev_zip', ("", "", "", ""))
+            names = ("operator", "axis", "order", "color")
+            cur = (op, ax, orr, col)
+            for name, old, new in zip(names, prev, cur):
+                if new and new != old:
+                    se.on_dial_spin(name, new)
+            self._prev_zip = cur
 
     def current_zip(self) -> tuple:
         return tuple(d.value() for d in self._dials)

@@ -43,6 +43,8 @@ class HostWindow(QMainWindow):
         self.cockpit.zip_changed.connect(self.canvas.set_facets)
         self.canvas.set_facets(*self.cockpit.current_zip())
         self.canvas.view.handback_requested.connect(self.cockpit.receive_handback)
+        if hasattr(self.canvas, '_sound_engine'):
+            self.cockpit._sound_engine = self.canvas._sound_engine
 
         splitter.addWidget(self.canvas)
         splitter.addWidget(self.cockpit)
@@ -72,6 +74,11 @@ class HostWindow(QMainWindow):
         self.cockpit._backend_combo.currentTextChanged.connect(self._on_backend_changed)
         self.cockpit._model_combo.currentTextChanged.connect(self._on_model_changed)
         self.cockpit._refresh_models()
+
+    def closeEvent(self, event):
+        if hasattr(self.canvas, '_sound_engine'):
+            self.canvas._sound_engine.stop()
+        super().closeEvent(event)
 
     # ── Conductor wiring ──────────────────────────────────────────────
 
