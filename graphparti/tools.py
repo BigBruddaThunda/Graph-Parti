@@ -755,10 +755,6 @@ class SelectTool(Tool):
     def on_release(self, p: QPointF) -> None:
         if self._mode == "move" and self._moved:
             d = p - self._anchor
-            gs = _gs(self.canvas)
-            has_text = any(isinstance(it, QGraphicsTextItem) for it in self._orig)
-            if has_text:
-                d = QPointF(round(d.x() / gs) * gs, round(d.y() / gs) * gs)
             for it, orig in self._orig.items():
                 it.setPos(orig)
             self.canvas.push_move(list(self._orig.keys()), d.x(), d.y())

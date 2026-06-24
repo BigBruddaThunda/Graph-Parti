@@ -1123,14 +1123,14 @@ class CanvasView(QGraphicsView):
         return None
 
     def _resizable_selected(self):
-        """The single selected resizable item (image or zip box) — or None.
+        """The single selected resizable item (image, zip box, text, or icon) — or None.
         Resize is tied to Select + Snap OFF: snap is the lock (move-only when on),
         snap-off lets the same Select drag resize. System-wide, no separate tool."""
         if self.snap_enabled:
             return None
         if not (self.active_tool and self.active_tool.name == "select"):
             return None
-        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem
+        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsTextItem
         sel = self.scene().selectedItems()
         if len(sel) != 1:
             return None
@@ -1138,6 +1138,8 @@ class CanvasView(QGraphicsView):
         if isinstance(it, QGraphicsPixmapItem):
             return it
         if isinstance(it, QGraphicsRectItem) and it.data(1) == "zip_box":
+            return it
+        if isinstance(it, QGraphicsTextItem):
             return it
         return None
 
@@ -1183,6 +1185,9 @@ class CanvasView(QGraphicsView):
         self._resize_anchor = QPointF(scene_pos)
         br = item.mapToScene(item.boundingRect()).boundingRect()
         self._resize_origin = QRectF(br)
+        if isinstance(item, QGraphicsTextItem):
+            f = item.font()
+            self._resize_orig_font_px = f.pixelSize() if f.pixelSize() > 0 else f.pointSize()
 
     def _do_resize(self, scene_pos: QPointF):
         if self._resize_item is None or self._resize_origin is None:
@@ -1202,7 +1207,7 @@ class CanvasView(QGraphicsView):
         if r.width() < 2 or r.height() < 2:
             return
         item = self._resize_item
-        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem
+        from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsTextItem
         from PySide6.QtGui import QTransform
         if isinstance(item, QGraphicsPixmapItem):
             pm = item.pixmap()
@@ -1218,6 +1223,21 @@ class CanvasView(QGraphicsView):
             for ch in item.childItems():
                 if ch.data(1) == "zip_box_text":
                     ch.setTextWidth(max(10.0, r.width() - 2 * pad))
+        elif isinstance(item, QGraphicsTextItem):
+            # Text / SCL icon: scale font size proportionally to the resize
+            orig = self._resize_origin
+            scale_factor = r.height() / max(orig.height(), 1)
+            font = item.font()
+            orig_px = font.pixelSize()
+            if orig_px <= 0:
+                orig_px = font.pointSize()
+            if not hasattr(self, '_resize_orig_font_px'):
+                self._resize_orig_font_px = orig_px
+            new_px = max(6, int(self._resize_orig_font_px * scale_factor))
+            font.setPixelSize(new_px)
+            item.setFont(font)
+            item.setTextWidth(max(10.0, r.width()))
+            item.setPos(r.topLeft())
         self.viewport().update()
 
     def _end_resize(self):
