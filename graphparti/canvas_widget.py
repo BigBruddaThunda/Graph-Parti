@@ -317,6 +317,11 @@ class CanvasWidget(QWidget):
 
         self.toolbar = self._build_toolbar()
         layout.addWidget(self.toolbar)
+
+        # ── 32-color palette bar (16 line + 16 fill) ──
+        palette_bar = self._build_palette_bar()
+        layout.addWidget(palette_bar)
+
         layout.addWidget(self.view, 1)
 
         # ── Status bar ──
@@ -654,6 +659,137 @@ class CanvasWidget(QWidget):
         tb.addWidget(self._weight_btn)
 
         return tb
+
+    def _build_palette_bar(self) -> QWidget:
+        """Build the 32-color palette bar: 16 line colors | 16 fill colors | fill toggle."""
+        _SCL_HEXES = [props["hex"] for props in SCL_COLORS.values()]
+        _COPPER = "#D4935A"
+        # 8 copper variations for fill (light to dark)
+        _COPPER_FILLS = [
+            "#F5E6D0", "#E8CBA8", "#D4935A", "#C47D3F",
+            "#A86B35", "#8C5A2B", "#704920", "#543818",
+        ]
+
+        bar = QWidget()
+        bar.setFixedHeight(42)
+        bar.setStyleSheet("background: #E8E0D0;")
+        bar_lay = QHBoxLayout(bar)
+        bar_lay.setContentsMargins(4, 2, 4, 2)
+        bar_lay.setSpacing(8)
+
+        # ── LEFT: 16 line color boxes (8 SCL canon + 8 custom/empty) ──
+        line_label = QLabel("Lines")
+        line_label.setStyleSheet("font-size:10px; color:#666;")
+        bar_lay.addWidget(line_label)
+
+        line_widget = QWidget()
+        line_grid = QGridLayout(line_widget)
+        line_grid.setSpacing(1)
+        line_grid.setContentsMargins(0, 0, 0, 0)
+        self._line_swatch_btns = []
+        # Row 0: 8 SCL canon colors
+        for i, (glyph, props) in enumerate(SCL_COLORS.items()):
+            btn = SwatchButton(QColor(props["hex"]))
+            btn.setToolTip(f"{props['name']} line — {props['line_type']} {props['weight']}")
+            btn.clicked.connect(lambda _ch=False, g=glyph: self._on_scl_color_selected(g))
+            btn.right_clicked.connect(lambda g=glyph: self._on_color_right_click(g))
+            line_grid.addWidget(btn, 0, i)
+            self._line_swatch_btns.append(btn)
+        # Row 1: 8 custom/free line color slots (default: light greys)
+        _CUSTOM_LINE = ["#666666", "#999999", "#CCCCCC", "#1A1A1A",
+                        "#00AAAA", "#FF69B4", "#006400", "#800080"]
+        for i, hex_c in enumerate(_CUSTOM_LINE):
+            btn = SwatchButton(QColor(hex_c))
+            btn.setToolTip(f"Custom line color (right-click to change)")
+            idx = len(self._line_swatch_btns)
+            btn.clicked.connect(lambda _ch=False, c=hex_c: self.view.set_stroke(c))
+            btn.right_clicked.connect(lambda ii=idx: self._pick_line_swatch(ii))
+            line_grid.addWidget(btn, 1, i)
+            self._line_swatch_btns.append(btn)
+        bar_lay.addWidget(line_widget)
+
+        bar_lay.addSpacing(12)
+
+        # ── RIGHT: 16 fill color boxes (8 SCL canon + 8 copper variations) ──
+        fill_label = QLabel("Fill")
+        fill_label.setStyleSheet("font-size:10px; color:#666;")
+        bar_lay.addWidget(fill_label)
+
+        fill_widget = QWidget()
+        fill_grid = QGridLayout(fill_widget)
+        fill_grid.setSpacing(1)
+        fill_grid.setContentsMargins(0, 0, 0, 0)
+        self._fill_swatch_btns = []
+        # Row 0: 8 SCL canon fill colors
+        for i, (glyph, props) in enumerate(SCL_COLORS.items()):
+            btn = SwatchButton(QColor(props["hex"]))
+            btn.setToolTip(f"{props['name']} fill")
+            btn.clicked.connect(lambda _ch=False, c=props["hex"]: self._set_fill_color(c))
+            btn.right_clicked.connect(lambda ii=len(self._fill_swatch_btns): self._pick_fill_swatch(ii))
+            fill_grid.addWidget(btn, 0, i)
+            self._fill_swatch_btns.append(btn)
+        # Row 1: 8 copper variation fill colors
+        for i, hex_c in enumerate(_COPPER_FILLS):
+            btn = SwatchButton(QColor(hex_c))
+            btn.setToolTip(f"Copper fill variation")
+            btn.clicked.connect(lambda _ch=False, c=hex_c: self._set_fill_color(c))
+            btn.right_clicked.connect(lambda ii=len(self._fill_swatch_btns): self._pick_fill_swatch(ii))
+            fill_grid.addWidget(btn, 1, i)
+            self._fill_swatch_btns.append(btn)
+        bar_lay.addWidget(fill_widget)
+
+        # ── Fill toggle button ──
+        self._fill_toggle_btn = QToolButton()
+        self._fill_toggle_btn.setText("Fill\nOFF")
+        self._fill_toggle_btn.setCheckable(True)
+        self._fill_toggle_btn.setChecked(False)
+        self._fill_toggle_btn.setFixedSize(36, 36)
+        self._fill_toggle_btn.setStyleSheet(
+            "QToolButton { background:#ccc; border:2px solid #D4935A; font-size:9px; }"
+            "QToolButton:checked { background:#348219; color:white; }"
+        )
+        self._fill_toggle_btn.setToolTip("Toggle fill on/off (F)")
+        self._fill_toggle_btn.toggled.connect(self._on_palette_fill_toggled)
+        bar_lay.addWidget(self._fill_toggle_btn)
+
+        bar_lay.addStretch(1)
+        return bar
+
+    def _set_fill_color(self, hex_color: str) -> None:
+        """Set the fill color and activate fill mode."""
+        paint = self._tools.get("paint")
+        if paint:
+            paint.set_color(QColor(hex_color))
+        self.view.set_fill(hex_color)
+        self._fill_toggle_btn.setChecked(True)
+        self._fill_toggle_btn.setText("Fill\nON")
+
+    def _on_palette_fill_toggled(self, on: bool) -> None:
+        if on:
+            self._fill_toggle_btn.setText("Fill\nON")
+            last_fill = getattr(self, '_last_fill_hex', "#D4935A")
+            self.view.set_fill(last_fill)
+        else:
+            self._fill_toggle_btn.setText("Fill\nOFF")
+            self.view.set_fill(None)
+
+    def _pick_line_swatch(self, idx: int) -> None:
+        if idx >= len(self._line_swatch_btns):
+            return
+        btn = self._line_swatch_btns[idx]
+        c = QColorDialog.getColor(btn.color(), self, "Choose Line Color")
+        if c.isValid():
+            btn.set_color(c)
+            self.view.set_stroke(c.name())
+
+    def _pick_fill_swatch(self, idx: int) -> None:
+        if idx >= len(self._fill_swatch_btns):
+            return
+        btn = self._fill_swatch_btns[idx]
+        c = QColorDialog.getColor(btn.color(), self, "Choose Fill Color")
+        if c.isValid():
+            btn.set_color(c)
+            self._set_fill_color(c.name())
 
     def _activate_tool(self, key: str) -> None:
         self.view.set_tool(self._tools[key])
