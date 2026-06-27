@@ -18,10 +18,12 @@ Z-pad: UP/DOWN = red #C1140C, LEFT/RIGHT/CENTER = black #3C3C3C.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QSize
+import math
+
+from PySide6.QtCore import Qt, Signal, QSize, QPointF, QRectF
 from PySide6.QtGui import (
     QColor, QFont, QKeySequence, QPalette, QShortcut,
-    QPainter, QPen, QBrush,
+    QPainter, QPen, QBrush, QPolygonF,
 )
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -59,6 +61,21 @@ _H_AXIS       = 60 / _REF_H   # 4.3%
 _H_INSTR      = 280 / _REF_H  # 20.0%
 
 _OP_RADIUS    = 12   # operator circle radius (px)
+
+# ── Zip Dial sequences ────────────────────────────────────────────────────────
+DIAL_SEQUENCES = {
+    "operator": ["📍", "🧲", "🤌", "👀", "🐋", "🧸", "🚀", "🥨", "🦢", "🦉", "🪵", "✒️"],
+    "axis":     ["🏛", "⌛", "🔨", "🐬", "🌹", "🪐"],
+    "order":    ["🐂", "⛽", "🦋", "🏟", "🌾", "⚖", "🖼"],
+    "color":    ["⚪", "🟡", "🟠", "🔴", "⚫", "🟣", "🔵", "🟢"],
+}
+
+DIAL_SIDES = {"operator": 12, "axis": 6, "order": 7, "color": 8}
+
+COLOR_HEXES = {
+    "⚪": "#F5F5DC", "🟡": "#F7B731", "🟠": "#F57E16", "🔴": "#C1140C",
+    "⚫": "#3C3C3C", "🟣": "#9255E5", "🔵": "#2464E5", "🟢": "#348219",
+}
 
 
 def _vg_font(size: int = 10) -> QFont:
@@ -297,6 +314,167 @@ class DialReel(QWidget):
         return self.entries[self.index][0] if self.enabled else None
 
 
+# ── Gem Dial Reel ─────────────────────────────────────────────────────────────
+
+class GemDialReel(QWidget):
+    """A single zip dial reel — shows 3 gem faces, spins up/down."""
+    value_changed = Signal(str)  # emits the active glyph
+
+    def __init__(self, name: str, sequence: list, sides: int,
+                 color_map: dict | None = None, parent=None):
+        super().__init__(parent)
+        self._name = name
+        self._sequence = sequence
+        self._sides = sides
+        self._color_map = color_map  # only for color reel
+        self._index = 0
+        self.setMinimumSize(80, 160)
+        self.setMaximumWidth(120)
+
+    @property
+    def active(self) -> str:
+        return self._sequence[self._index]
+
+    @property
+    def prev(self) -> str:
+        return self._sequence[(self._index - 1) % len(self._sequence)]
+
+    @property
+    def nxt(self) -> str:
+        return self._sequence[(self._index + 1) % len(self._sequence)]
+
+    def spin_up(self):
+        self._index = (self._index - 1) % len(self._sequence)
+        self.value_changed.emit(self.active)
+        self.update()
+
+    def spin_down(self):
+        self._index = (self._index + 1) % len(self._sequence)
+        self.value_changed.emit(self.active)
+        self.update()
+
+    def set_value(self, glyph: str):
+        if glyph in self._sequence:
+            self._index = self._sequence.index(glyph)
+            self.update()
+
+    def mousePressEvent(self, event):
+        h = self.height()
+        y = event.position().y()
+        if y < h * 0.3:
+            self.spin_up()
+        elif y > h * 0.7:
+            self.spin_down()
+        event.accept()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        copper = QColor(_COPPER)
+        paper = QColor(_PAPER)
+
+        # Background
+        p.fillRect(0, 0, w, h, paper)
+        p.setPen(QPen(copper, 2))
+        p.drawRect(1, 1, w - 2, h - 2)
+
+        # Dividing lines between faces
+        third = h / 3
+        p.setPen(QPen(copper, 1.5))
+        # Horizontal copper bars between faces
+        bar_h = 6
+        for y_pos in (third - bar_h / 2, 2 * third - bar_h / 2):
+            p.setBrush(QBrush(copper))
+            p.drawRect(QRectF(4, y_pos, w - 8, bar_h))
+            # Small circles at bar ends (rivets)
+            rivet_r = 3
+            p.drawEllipse(QPointF(4 + rivet_r, y_pos + bar_h / 2), rivet_r, rivet_r)
+            p.drawEllipse(QPointF(w - 4 - rivet_r, y_pos + bar_h / 2), rivet_r, rivet_r)
+
+        # Draw 3 gem faces
+        gem_w = w * 0.7
+        gem_h = third * 0.65
+        cx = w / 2
+
+        # Top face (previous) — clipped to upper half
+        self._draw_gem(p, cx, third * 0.45, gem_w * 0.75, gem_h * 0.75,
+                       self.prev, clip="top")
+        # Middle face (active) — full
+        self._draw_gem(p, cx, h / 2, gem_w, gem_h, self.active, clip=None)
+        # Bottom face (next) — clipped to lower half
+        self._draw_gem(p, cx, h - third * 0.45, gem_w * 0.75, gem_h * 0.75,
+                       self.nxt, clip="bottom")
+
+        p.end()
+
+    def _draw_gem(self, painter: QPainter, cx: float, cy: float,
+                  w: float, h: float, glyph: str, clip: str | None = None):
+        """Draw a faceted gem shape at (cx, cy) with width w and height h."""
+        painter.save()
+
+        # Clip region for top/bottom faces
+        if clip == "top":
+            clip_rect = QRectF(cx - w, cy - h, w * 2, h)
+            painter.setClipRect(clip_rect)
+        elif clip == "bottom":
+            clip_rect = QRectF(cx - w, cy, w * 2, h)
+            painter.setClipRect(clip_rect)
+
+        n = self._sides
+        rx, ry = w / 2, h / 2
+        inner_scale = 0.55
+
+        # Outer polygon
+        outer = []
+        for i in range(n):
+            angle = 2 * math.pi * i / n - math.pi / 2  # start from top
+            outer.append(QPointF(cx + rx * math.cos(angle),
+                                 cy + ry * math.sin(angle)))
+
+        # Inner polygon
+        inner = []
+        for i in range(n):
+            angle = 2 * math.pi * i / n - math.pi / 2
+            inner.append(QPointF(cx + rx * inner_scale * math.cos(angle),
+                                 cy + ry * inner_scale * math.sin(angle)))
+
+        # Fill
+        is_color_reel = self._color_map is not None
+        if is_color_reel and glyph in self._color_map:
+            fill_color = QColor(self._color_map[glyph])
+            painter.setBrush(QBrush(fill_color))
+        else:
+            painter.setBrush(QBrush(QColor(_PAPER)))
+
+        # Draw outer polygon
+        poly = QPolygonF(outer + [outer[0]])
+        pen = QPen(QColor(_BLACK), 1.5)
+        painter.setPen(pen)
+        painter.drawPolygon(poly)
+
+        # Draw inner polygon
+        if not is_color_reel:
+            inner_poly = QPolygonF(inner + [inner[0]])
+            painter.setBrush(QBrush(QColor(_PAPER)))
+            painter.drawPolygon(inner_poly)
+
+        # Draw radial facet lines (outer vertex to inner vertex)
+        painter.setPen(QPen(QColor(_BLACK), 1.0))
+        for i in range(n):
+            painter.drawLine(outer[i], inner[i])
+
+        # Draw glyph text in center
+        font = painter.font()
+        font.setPixelSize(max(12, int(min(w, h) * 0.3)))
+        painter.setFont(font)
+        painter.setPen(QPen(QColor(_BLACK) if not is_color_reel else QColor("white")))
+        text_rect = QRectF(cx - w / 2, cy - h / 4, w, h / 2)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, glyph)
+
+        painter.restore()
+
+
 # ── Main Panel ────────────────────────────────────────────────────────────────
 
 class ArchideckPanel(QWidget):
@@ -494,8 +672,9 @@ class ArchideckPanel(QWidget):
         right = QVBoxLayout()
         right.setSpacing(2)
         right.setContentsMargins(0, 0, 0, 0)
+        _TYPE_NAMES = ["Push", "Pull", "Legs", "Plus", "Ultra"]
         self._terminal_buttons: list[QToolButton] = []
-        for glyph, name in MODIFIERS[:4]:
+        for idx, (glyph, name) in enumerate(MODIFIERS[:4]):
             b = QToolButton()
             b.setText(glyph)
             b.setToolTip(name)
@@ -505,9 +684,12 @@ class ArchideckPanel(QWidget):
                 f"QToolButton {{ border: 1px solid {_COPPER}; background: {_PAPER}; "
                 f"font-size: 10px; }}"
             )
+            t = _TYPE_NAMES[idx]
+            b.clicked.connect(lambda checked=False, tn=t: self.set_active_type(tn))
             right.addWidget(b)
             self._terminal_buttons.append(b)
         self._terminal_buttons.append(self._btn5)
+        self._btn5.clicked.connect(lambda: self.set_active_type("Ultra"))
 
         outer.addLayout(right)
 
@@ -552,11 +734,8 @@ class ArchideckPanel(QWidget):
         )
         mg_lay = QVBoxLayout(mg_inner)
         mg_lay.setContentsMargins(6, 6, 6, 6)
-        self._middle = QLabel("middle ground\n\nclick an Operator  ·  F1–F12")
-        self._middle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._middle.setWordWrap(True)
-        self._middle.setFont(_vg_font(10))
-        self._middle.setStyleSheet(f"color: {_BLACK}; background: transparent;")
+        from .workout_card import WorkoutCardWidget
+        self._middle = WorkoutCardWidget()
         mg_lay.addWidget(self._middle)
         lay.addWidget(mg_inner, 1)
 
@@ -564,9 +743,8 @@ class ArchideckPanel(QWidget):
 
     def _select_operator(self, i: int) -> None:
         glyph, name = OPERATORS[i]
-        self._middle.setText(
-            f"{glyph}  {name}\n\noperator tools appear here\n(wiring later)"
-        )
+        # reload card with current zip when operator changes
+        self._load_workout_card()
         for j, b in enumerate(self._op_buttons):
             b.set_active(j == i)
 
@@ -631,26 +809,31 @@ class ArchideckPanel(QWidget):
         row.setContentsMargins(4, 4, 4, 4)
         row.setSpacing(6)
 
-        # ── Zip Dial (4 reels) ────────────────────────────────────
+        # ── Zip Dial (4 GemDialReel reels) ───────────────────────
         dial_frame = _copper_frame()
         dial_lay = QHBoxLayout(dial_frame)
         dial_lay.setContentsMargins(3, 3, 3, 3)
         dial_lay.setSpacing(3)
 
-        # Build reel entries: (glyph, name) pairs for each dimension
-        op_entries  = [(g, n) for g, n in OPERATORS]
-        ax_entries  = [(g, n) for g, n in AXES]
-        or_entries  = [(g, n) for g, n in ORDERS]
-        col_entries = [(g, n) for g, n, _ in COLORS]
-
-        self._dial_op = DialReel(op_entries)
-        self._dial_ax = DialReel(ax_entries)
-        self._dial_or = DialReel(or_entries)
-        self._dial_co = DialReel(col_entries)
-        self._dials   = [self._dial_op, self._dial_ax, self._dial_or, self._dial_co]
+        self._dial_op = GemDialReel(
+            "operator", DIAL_SEQUENCES["operator"], DIAL_SIDES["operator"]
+        )
+        self._dial_ax = GemDialReel(
+            "axis", DIAL_SEQUENCES["axis"], DIAL_SIDES["axis"]
+        )
+        self._dial_or = GemDialReel(
+            "order", DIAL_SEQUENCES["order"], DIAL_SIDES["order"]
+        )
+        self._dial_co = GemDialReel(
+            "color", DIAL_SEQUENCES["color"], DIAL_SIDES["color"],
+            color_map=COLOR_HEXES,
+        )
+        self._gem_reels = [self._dial_op, self._dial_ax, self._dial_or, self._dial_co]
 
         # Column headers
-        for label_text, reel in zip(["Operator", "Axis", "Order", "Color"], self._dials):
+        for label_text, reel in zip(
+            ["Operator", "Axis", "Order", "Color"], self._gem_reels
+        ):
             col = QVBoxLayout()
             col.setSpacing(1)
             lbl = QLabel(label_text)
@@ -664,9 +847,9 @@ class ArchideckPanel(QWidget):
             col.addWidget(reel, 1)
             dial_lay.addLayout(col)
 
-        for d in self._dials:
-            d.changed.connect(self._refresh_zip)
-        self._dial_co.changed.connect(self._retint)
+        for reel in self._gem_reels:
+            reel.value_changed.connect(lambda _: self._refresh_zip())
+        self._dial_co.value_changed.connect(lambda _: self._retint())
 
         row.addWidget(dial_frame, 2)  # ~2/3
 
@@ -697,34 +880,39 @@ class ArchideckPanel(QWidget):
             b.setMinimumSize(44, 44)
             return b
 
-        # UP (red)
+        # UP (red) — ➕ Plus
         up_btn = _zpad_btn("➕", _RED, is_drag=True,
                            mime="application/x-scl-arrow", payload="up",
-                           tip="drag onto canvas → up arrow")
+                           tip="Plus · click = set type · drag = canvas arrow")
+        up_btn.clicked.connect(lambda: self.set_active_type("Plus"))
         grid.addWidget(up_btn, 0, 1)
 
-        # LEFT (black)
+        # LEFT (black) — 🛒 Push
         left_btn = _zpad_btn("🛒", _BLACK, is_drag=True,
                              mime="application/x-scl-arrow", payload="left",
-                             tip="drag onto canvas → left arrow")
+                             tip="Push · click = set type · drag = canvas arrow")
+        left_btn.clicked.connect(lambda: self.set_active_type("Push"))
         grid.addWidget(left_btn, 1, 0)
 
-        # CENTER 🍗 (black)
+        # CENTER 🍗 (black) — Legs
         center_btn = _zpad_btn("🍗", _BLACK, is_drag=True,
                                mime="application/x-scl-handback", payload="leg",
-                               tip="drag onto a district → hand it back to Archideck")
+                               tip="Legs · click = set type · drag = handback")
+        center_btn.clicked.connect(lambda: self.set_active_type("Legs"))
         grid.addWidget(center_btn, 1, 1)
 
-        # RIGHT (black)
+        # RIGHT (black) — 🪡 Pull
         right_btn = _zpad_btn("🪡", _BLACK, is_drag=True,
                               mime="application/x-scl-arrow", payload="right",
-                              tip="drag onto canvas → right arrow")
+                              tip="Pull · click = set type · drag = canvas arrow")
+        right_btn.clicked.connect(lambda: self.set_active_type("Pull"))
         grid.addWidget(right_btn, 1, 2)
 
-        # DOWN (red)
+        # DOWN (red) — ➖ Ultra
         down_btn = _zpad_btn("➖", _RED, is_drag=True,
                              mime="application/x-scl-arrow", payload="down",
-                             tip="drag onto canvas → down arrow")
+                             tip="Ultra · click = set type · drag = canvas arrow")
+        down_btn.clicked.connect(lambda: self.set_active_type("Ultra"))
         grid.addWidget(down_btn, 2, 1)
 
         # Stretch remaining columns/rows evenly
@@ -741,10 +929,11 @@ class ArchideckPanel(QWidget):
     # ZIP ADDRESS — update revelator from dials
     # =========================================================================
     def _refresh_zip(self) -> None:
-        glyphs = " ".join((d.value() or "_") for d in self._dials)
+        glyphs = " ".join(r.active for r in self._gem_reels)
         self._zip_glyphs.setText(f"[ {glyphs} ]")
-        op, ax, orr, col = ((d.value() or "") for d in self._dials)
+        op, ax, orr, col = (r.active for r in self._gem_reels)
         self.zip_changed.emit(op, ax, orr, col)
+        self._load_workout_card()
         se = getattr(self, '_sound_engine', None)
         if se is not None:
             prev = getattr(self, '_prev_zip', ("", "", "", ""))
@@ -756,14 +945,33 @@ class ArchideckPanel(QWidget):
             self._prev_zip = cur
 
     def current_zip(self) -> tuple:
-        return tuple(d.value() for d in self._dials)
+        return tuple(r.active for r in self._gem_reels)
+
+    # =========================================================================
+    # WORKOUT CARD — load from DB on zip/type change
+    # =========================================================================
+    _active_type: str = "Push"
+
+    def _load_workout_card(self) -> None:
+        op, ax, orr, col = (r.active for r in self._gem_reels)
+        if not all((op, ax, orr, col)):
+            return
+        self._middle.set_workout_from_db(op, ax, orr, col, self._active_type)
+
+    def set_active_type(self, type_name: str) -> None:
+        self._active_type = type_name
+        self._load_workout_card()
+
+    def show_parsed_exercise(self, parsed: dict) -> None:
+        self._middle.set_exercise(parsed)
 
     # =========================================================================
     # COLOR SHELL TINT — color dial → panel background
     # =========================================================================
     def _retint(self) -> None:
         """Blend the active color dial's hue into the sheep's-wool paper base."""
-        _, _name, hex_col = COLORS[self._dial_co.index]
+        glyph = self._dial_co.active
+        hex_col = COLOR_HEXES.get(glyph, _PAPER)
         tint = QColor(hex_col)
         paper = QColor(_PAPER)
 
