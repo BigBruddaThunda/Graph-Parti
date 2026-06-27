@@ -212,22 +212,33 @@ class CanvasView(QGraphicsView):
 
     # ----------------------------------------------------- selection / editing
     def _active_layer_items(self) -> set:
-        """Items selectable under the current layer mode (parti/both/trace/book)."""
+        """Items selectable under the current layer mode."""
         if self.document is None:
             return set()
         result: set = set()
         mode = self._layer_mode
+
+        def _layer_by_name(name: str):
+            for layer in self.document.layers:
+                if layer.name == name:
+                    return layer
+            return None
+
         if mode in ("parti", "both"):
-            pl = self.document.layers[0]  # parti (raster)
-            if hasattr(pl, '_ref_images'):
+            pl = _layer_by_name("parti")
+            if pl and hasattr(pl, '_ref_images'):
                 result |= set(pl._ref_images)
         if mode in ("trace", "both"):
-            tl = self.document.layers[1]  # trace (vector)
-            if hasattr(tl, 'items'):
+            tl = _layer_by_name("trace")
+            if tl and hasattr(tl, 'items'):
                 result |= set(tl.items())
-        if mode == "book" and len(self.document.layers) > 2:
-            bl = self.document.layers[2]  # book (vector — zip boxes)
-            if hasattr(bl, 'items'):
+        if mode in ("draw", "both"):
+            dl = _layer_by_name("draw")
+            if dl and hasattr(dl, 'items'):
+                result |= set(dl.items())
+        if mode == "book":
+            bl = _layer_by_name("book")
+            if bl and hasattr(bl, 'items'):
                 result |= set(bl.items())
         return result
 
@@ -1360,7 +1371,9 @@ class CanvasView(QGraphicsView):
         from .tools import _load_vg5000
         if self.document is None or len(self.document.layers) < 3:
             return
-        book = self.document.layers[2]
+        book = next((l for l in self.document.layers if l.name == "book"), None)
+        if book is None:
+            return
         gs = self.grid_spacing
         w, h = 12 * gs, 7 * gs
         pad = gs * 0.35
@@ -1564,11 +1577,14 @@ class CanvasView(QGraphicsView):
         self._add_to_book_layer(item)
 
     def _add_to_book_layer(self, item) -> None:
-        """Add an item to the book layer (index 2) with undo support."""
-        if self.document is None or len(self.document.layers) < 3:
+        """Add an item to the book layer with undo support."""
+        if self.document is None:
             self.add_item(item)
             return
-        book = self.document.layers[2]
+        book = next((l for l in self.document.layers if l.name == "book"), None)
+        if book is None:
+            self.add_item(item)
+            return
         from .commands import AddItemCommand
         if self.undo_stack is not None:
             self.undo_stack.push(AddItemCommand(book, item))
