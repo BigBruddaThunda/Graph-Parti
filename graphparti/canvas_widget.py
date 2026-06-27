@@ -19,7 +19,7 @@ from .sound import SoundEngine
 from .tools import (
     ArcTool, ArrayPolarTool, ArrayRectTool, BlockInsertTool, BlockSaveTool, BreakTool, CellTextTool, ChamferTool, CircleTool, ConstructionLineTool,
     CopyTool, DivideTool, EllipseTool,
-    EyedropperTool, ExtendTool, FilletTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MeasureTool, MirrorTool, OffsetTool,
+    EyedropperTool, ExtendTool, FilletTool, FreeDrawTool, HatchTool, JoinTool, LeaderTool, LinearDimTool, LineTool, MatchPropTool, MeasureTool, MirrorTool, OffsetTool,
     PaintTool, PEditTool, PerspectiveTool, PolygonTool, PolylineTool, RectTool, RotateTool, ScaleTool, SelectTool,
     SplineTool, StretchTool, TrimTool, WordTextTool,
     set_line_type, LINE_TYPES, set_line_weight, LINE_WEIGHTS,
@@ -299,6 +299,7 @@ class CanvasWidget(QWidget):
             "block_save": BlockSaveTool(self.view),
             "block_insert": BlockInsertTool(self.view),
             "copy": CopyTool(self.view),
+            "freedraw": FreeDrawTool(self.view),
             "eyedropper": EyedropperTool(self.view),
             "fillet": FilletTool(self.view),
             "hatch": HatchTool(self.view),
@@ -337,7 +338,7 @@ class CanvasWidget(QWidget):
         status_lay.addWidget(self._scale_label)
 
         self._layer_mode = "trace"
-        self._layer_modes = ["parti", "both", "trace", "book"]
+        self._layer_modes = ["parti", "both", "trace", "draw", "book"]
         self._layer_buttons: list[LayerButton] = []
         for mode in self._layer_modes:
             btn = LayerButton()
@@ -524,6 +525,7 @@ class CanvasWidget(QWidget):
             ("break_at", "Break", ""),
             ("spline", "Spline", ""),
             ("stretch", "Stretch", ""),
+            ("freedraw", "Draw", ""),
         ]:
             act = QAction(label, self)
             act.setCheckable(True)
@@ -752,6 +754,41 @@ class CanvasWidget(QWidget):
         self._fill_toggle_btn.toggled.connect(self._on_palette_fill_toggled)
         bar_lay.addWidget(self._fill_toggle_btn)
 
+        bar_lay.addSpacing(12)
+
+        # ── DRAW: 16 freehand pen slots (2 rows × 8) ──
+        draw_label = QLabel("Draw")
+        draw_label.setStyleSheet("font-size:10px; color:#666;")
+        bar_lay.addWidget(draw_label)
+
+        _DRAW_COLORS = [
+            "#3C3C3C", "#1A1A1A", "#C1140C", "#2464E5",
+            "#348219", "#9255E5", "#F57E16", "#F7B731",
+            "#666666", "#999999", "#00AAAA", "#FF69B4",
+            "#8B4513", "#006400", "#191970", "#D4935A",
+        ]
+        _DRAW_WIDTHS = [
+            1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            0.5, 0.5, 0.5, 0.5, 3.0, 3.0, 3.0, 3.0,
+        ]
+
+        draw_widget = QWidget()
+        draw_grid = QGridLayout(draw_widget)
+        draw_grid.setSpacing(1)
+        draw_grid.setContentsMargins(0, 0, 0, 0)
+        self._draw_swatch_btns = []
+        self._draw_configs = []  # (color, width) per slot
+
+        for i, (hex_c, w) in enumerate(zip(_DRAW_COLORS, _DRAW_WIDTHS)):
+            self._draw_configs.append({"color": hex_c, "width": w})
+            btn = SwatchButton(QColor(hex_c))
+            btn.setToolTip(f"Draw pen: {hex_c} width={w}")
+            btn.clicked.connect(lambda _ch=False, idx=i: self._activate_draw_slot(idx))
+            btn.right_clicked.connect(lambda idx=i: self._configure_draw_slot(idx))
+            draw_grid.addWidget(btn, i // 8, i % 8)
+            self._draw_swatch_btns.append(btn)
+        bar_lay.addWidget(draw_widget)
+
         bar_lay.addStretch(1)
         return bar
 
@@ -790,6 +827,29 @@ class CanvasWidget(QWidget):
         if c.isValid():
             btn.set_color(c)
             self._set_fill_color(c.name())
+
+    def _activate_draw_slot(self, idx: int) -> None:
+        """Left-click a draw swatch → activate FreeDrawTool with that color/width."""
+        if idx >= len(self._draw_configs):
+            return
+        cfg = self._draw_configs[idx]
+        tool = self._tools.get("freedraw")
+        if tool:
+            tool.set_draw_style(cfg["color"], cfg["width"])
+            if "freedraw" in self._tool_actions:
+                self._tool_actions["freedraw"].setChecked(True)
+            self._activate_tool("freedraw")
+
+    def _configure_draw_slot(self, idx: int) -> None:
+        """Right-click a draw swatch → color picker + width dialog."""
+        if idx >= len(self._draw_configs):
+            return
+        cfg = self._draw_configs[idx]
+        color = QColorDialog.getColor(QColor(cfg["color"]), self, "Draw Pen Color")
+        if color.isValid():
+            cfg["color"] = color.name()
+            self._draw_swatch_btns[idx].set_color(color)
+            self._draw_swatch_btns[idx].setToolTip(f"Draw pen: {color.name()} width={cfg['width']}")
 
     def _activate_tool(self, key: str) -> None:
         self.view.set_tool(self._tools[key])

@@ -196,12 +196,13 @@ class Document:
 
     @classmethod
     def default(cls, scene: QGraphicsScene, paper: QRectF) -> "Document":
-        """parti (raster ref) · trace (vector, active) · book (vector, zip boxes).
+        """parti (raster ref) · trace (vector, active) · draw (vector, freehand) · book (vector, zip boxes).
 
-        Layer indices are load-bearing: 0=parti, 1=trace, 2=book."""
+        Layer indices: 0=parti, 1=trace, 2=draw, 3=book."""
         doc = cls(scene)
         doc.add_layer(RasterLayer("parti", scene, paper, opacity=0.50), active=False)
         doc.add_layer(VectorLayer("trace", scene), active=True)
+        doc.add_layer(VectorLayer("draw", scene), active=False)
         doc.add_layer(VectorLayer("book", scene), active=False)
         return doc
 

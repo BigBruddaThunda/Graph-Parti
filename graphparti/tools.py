@@ -3933,3 +3933,78 @@ class BlockInsertTool(Tool):
                                      self._cur.x() + gs * 0.5, self._cur.y()))
             painter.drawLine(QLineF(self._cur.x(), self._cur.y() - gs * 0.5,
                                      self._cur.x(), self._cur.y() + gs * 0.5))
+
+
+# ═══════════════════════════════════════════════════════════ free draw
+class FreeDrawTool(Tool):
+    """Freehand pen: mouse down → draw → up = path. No snap, no ortho."""
+    name = "freedraw"
+
+    def __init__(self, canvas, color: str = "#3C3C3C", width: float = 1.0) -> None:
+        super().__init__(canvas)
+        self._draw_color = color
+        self._draw_width = width
+        self._points = []
+        self._drawing = False
+
+    @property
+    def in_progress(self) -> bool:
+        return self._drawing
+
+    def reset(self) -> None:
+        self._points = []
+        self._drawing = False
+
+    def set_draw_style(self, color: str, width: float) -> None:
+        self._draw_color = color
+        self._draw_width = width
+
+    def on_press(self, p: QPointF) -> None:
+        self._points = [QPointF(p)]
+        self._drawing = True
+
+    def on_move(self, p: QPointF) -> None:
+        if self._drawing:
+            self._points.append(QPointF(p))
+
+    def on_release(self, p: QPointF) -> None:
+        if not self._drawing:
+            return
+        self._points.append(QPointF(p))
+        self._drawing = False
+        if len(self._points) < 2:
+            self.reset()
+            return
+        path = QPainterPath()
+        path.moveTo(self._points[0])
+        for pt in self._points[1:]:
+            path.lineTo(pt)
+        item = QGraphicsPathItem(path)
+        pen = make_pen(self._draw_color, self._draw_width)
+        item.setPen(pen)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        item.setData(0, {"zip": "", "note": ""})
+        item.setData(1, "freedraw")
+        # Route to draw layer if available
+        doc = self.canvas.document
+        draw_layer = None
+        if doc:
+            for layer in doc.layers:
+                if layer.name == "draw" and layer.kind == "vector":
+                    draw_layer = layer
+                    break
+        if draw_layer and self.canvas.undo_stack:
+            from .commands import AddItemCommand
+            self.canvas.undo_stack.push(AddItemCommand(draw_layer, item))
+        else:
+            self.canvas.add_item(item)
+        self.reset()
+
+    def paint_preview(self, painter: QPainter) -> None:
+        if self._drawing and len(self._points) >= 2:
+            pen = QPen(QColor(self._draw_color))
+            pen.setCosmetic(True)
+            pen.setWidthF(self._draw_width)
+            painter.setPen(pen)
+            for a, b in zip(self._points, self._points[1:]):
+                painter.drawLine(QLineF(a, b))

@@ -621,3 +621,22 @@ def test_scl_color_system():
     assert SCL_COLORS["⚫"]["weight"] == "heavy"
     assert SCL_COLORS["🔵"]["line_type"] == "dashed"
     assert SCL_COLORS["🔵"]["weight"] == "fine"
+
+
+def test_freedraw_creates_path(canvas_env):
+    from PySide6.QtWidgets import QGraphicsPathItem
+    from graphparti.tools import FreeDrawTool
+
+    view, scene, undo = canvas_env
+
+    tool = FreeDrawTool(view, color="#C1140C", width=2.0)
+    tool.on_press(QPointF(0, 0))
+    tool.on_move(QPointF(20, 10))
+    tool.on_move(QPointF(40, 5))
+    tool.on_move(QPointF(60, 15))
+    tool.on_release(QPointF(80, 0))
+
+    paths = [i for i in scene.items()
+             if isinstance(i, QGraphicsPathItem) and i.data(1) == "freedraw"]
+    assert len(paths) >= 1, "Expected at least 1 freedraw path"
+    assert paths[0].pen().color().name() == "#c1140c"
