@@ -1,8 +1,14 @@
 """GRAPH PARTI application entry point."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# Enable WinTab API for tablet/stylus support (UGEE M908 and similar EMR tablets).
+# Qt6 defaults to Windows Ink which doesn't work with all WinTab-only devices.
+# This must be set BEFORE QApplication is created.
+os.environ.setdefault("QT_WINTAB_ENABLED", "1")
 
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication

@@ -989,35 +989,92 @@ class CanvasView(QGraphicsView):
         super().keyReleaseEvent(event)
 
     def tabletEvent(self, event) -> None:
-        """Handle tablet/stylus input — convert to tool routing calls.
+        """Handle UGEE M908 (passive EMR) and other tablet/stylus input.
 
-        Accepts the tablet event to prevent Qt from synthesising a duplicate
-        mouse event (which would cause double-processing through mousePressEvent
-        etc.).  The snap resolution path is the same as the mouse path.
+        The M908 sends absolute coordinates + 16384 pressure levels + tilt via
+        WinTab or Windows Ink drivers. Qt wraps these as QTabletEvent.
+
+        Key fixes for cheap EMR tablets:
+        - Throttle TabletMove events (EMR hovering floods at ~200Hz)
+        - Accept all tablet events to prevent Qt mouse synthesis (double-processing)
+        - Treat barrel button 1 as right-click, barrel button 2 as middle-click
+        - Store pressure for future pressure-sensitive drawing
         """
+        import time
         from PySide6.QtCore import QEvent
 
         event.accept()
 
+        etype = event.type()
+
+        # Throttle hover/move events to ~60fps to prevent UI freeze
+        if etype == QEvent.Type.TabletMove:
+            now = time.monotonic()
+            if hasattr(self, '_last_tablet_move') and now - self._last_tablet_move < 0.016:
+                return
+            self._last_tablet_move = now
+
         scene_pos = self.mapToScene(event.position().toPoint())
 
-        # Resolve snap (same as mouse path)
+        # Store pressure and tilt for tools that want them
+        self._tablet_pressure = event.pressure()
+        self._tablet_tilt_x = event.xTilt()
+        self._tablet_tilt_y = event.yTilt()
+
+        # Resolve snap
         resolved, kind = self.resolve_snap(scene_pos)
         self._cursor_scene = resolved
         self._snap_kind = kind
         self.cursor_moved.emit(resolved, kind)
 
-        etype = event.type()
+        # Map barrel buttons: button() returns which button changed,
+        # buttons() returns which are currently held
+        from PySide6.QtCore import Qt as _Qt
+        pen_btn = event.button()
+        is_eraser = (event.pointerType() == event.PointerType.Eraser)
+
         if etype == QEvent.Type.TabletPress:
-            if self.active_tool:
-                self.active_tool.on_press(resolved)
+            if is_eraser:
+                if self.active_tool:
+                    self.active_tool.on_right_press(resolved)
+            elif pen_btn == _Qt.MouseButton.RightButton:
+                if self.active_tool:
+                    self.active_tool.on_right_press(resolved)
+            elif pen_btn == _Qt.MouseButton.MiddleButton:
+                self._panning = True
+                self._pan_anchor = event.position()
+            else:
+                if self.active_tool:
+                    self.active_tool.on_press(resolved)
+
         elif etype == QEvent.Type.TabletMove:
-            if self.active_tool:
+            if self._panning:
+                delta = event.position() - self._pan_anchor
+                self._pan_anchor = event.position()
+                self.horizontalScrollBar().setValue(
+                    int(self.horizontalScrollBar().value() - delta.x()))
+                self.verticalScrollBar().setValue(
+                    int(self.verticalScrollBar().value() - delta.y()))
+            elif self.active_tool:
                 self.active_tool.on_move(resolved)
             self.viewport().update()
+
         elif etype == QEvent.Type.TabletRelease:
-            if self.active_tool:
-                self.active_tool.on_release(resolved)
+            if self._panning:
+                self._panning = False
+            elif is_eraser or pen_btn == _Qt.MouseButton.RightButton:
+                if self.active_tool:
+                    self.active_tool.on_right_release(resolved)
+            else:
+                if self.active_tool:
+                    self.active_tool.on_release(resolved)
+            self.viewport().update()
+
+        elif etype == QEvent.Type.TabletEnterProximity:
+            pass  # pen entered EMR field — just acknowledge
+
+        elif etype == QEvent.Type.TabletLeaveProximity:
+            pass  # pen left EMR field
             self.viewport().update()
 
     # ----------------------------------------- drag-and-drop (reference images)
