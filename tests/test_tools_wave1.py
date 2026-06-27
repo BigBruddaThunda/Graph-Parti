@@ -640,3 +640,33 @@ def test_freedraw_creates_path(canvas_env):
              if isinstance(i, QGraphicsPathItem) and i.data(1) == "freedraw"]
     assert len(paths) >= 1, "Expected at least 1 freedraw path"
     assert paths[0].pen().color().name() == "#c1140c"
+
+
+def test_shape_recognizer_line():
+    from graphparti.shape_recognizer import recognize_shape
+
+    # Slightly wobbly line from (0,0) to (100,0)
+    points = [QPointF(0, 0), QPointF(20, 2), QPointF(40, -1),
+              QPointF(60, 3), QPointF(80, -2), QPointF(100, 0)]
+    result = recognize_shape(points)
+    assert result is not None
+    assert result["type"] == "line"
+
+
+def test_shape_recognizer_circle():
+    import math
+    from graphparti.shape_recognizer import recognize_shape
+
+    # Rough circle: 20 points around a circle with some noise
+    center_x, center_y, r = 50, 50, 30
+    points = []
+    for i in range(20):
+        angle = 2 * math.pi * i / 20
+        noise = (i % 3 - 1) * 3  # small noise
+        points.append(QPointF(center_x + (r + noise) * math.cos(angle),
+                              center_y + (r + noise) * math.sin(angle)))
+    points.append(QPointF(points[0].x() + 2, points[0].y() + 2))  # close near start
+
+    result = recognize_shape(points)
+    assert result is not None
+    assert result["type"] in ("circle", "ellipse")

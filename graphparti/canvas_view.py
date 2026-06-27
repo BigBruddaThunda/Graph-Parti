@@ -988,6 +988,38 @@ class CanvasView(QGraphicsView):
                 self.viewport().update()
         super().keyReleaseEvent(event)
 
+    def tabletEvent(self, event) -> None:
+        """Handle tablet/stylus input — convert to tool routing calls.
+
+        Accepts the tablet event to prevent Qt from synthesising a duplicate
+        mouse event (which would cause double-processing through mousePressEvent
+        etc.).  The snap resolution path is the same as the mouse path.
+        """
+        from PySide6.QtCore import QEvent
+
+        event.accept()
+
+        scene_pos = self.mapToScene(event.position().toPoint())
+
+        # Resolve snap (same as mouse path)
+        resolved, kind = self.resolve_snap(scene_pos)
+        self._cursor_scene = resolved
+        self._snap_kind = kind
+        self.cursor_moved.emit(resolved, kind)
+
+        etype = event.type()
+        if etype == QEvent.Type.TabletPress:
+            if self.active_tool:
+                self.active_tool.on_press(resolved)
+        elif etype == QEvent.Type.TabletMove:
+            if self.active_tool:
+                self.active_tool.on_move(resolved)
+            self.viewport().update()
+        elif etype == QEvent.Type.TabletRelease:
+            if self.active_tool:
+                self.active_tool.on_release(resolved)
+            self.viewport().update()
+
     # ----------------------------------------- drag-and-drop (reference images)
     _DRAG_FORMATS = ("application/x-scl-glyph", "application/x-scl-zip",
                      "application/x-scl-arrow", "application/x-scl-handback",

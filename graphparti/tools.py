@@ -3937,8 +3937,11 @@ class BlockInsertTool(Tool):
 
 # ═══════════════════════════════════════════════════════════ free draw
 class FreeDrawTool(Tool):
-    """Freehand pen: mouse down → draw → up = path. No snap, no ortho."""
+    """Freehand pen with smart correction. Draw freely, hold at end to snap to shape."""
     name = "freedraw"
+
+    _HOLD_MS = 500  # milliseconds to hold before shape correction
+    _SMOOTH_FACTOR = 3  # point averaging window for smoothing
 
     def __init__(self, canvas, color: str = "#3C3C3C", width: float = 1.0) -> None:
         super().__init__(canvas)
@@ -3946,6 +3949,8 @@ class FreeDrawTool(Tool):
         self._draw_width = width
         self._points = []
         self._drawing = False
+        self._hold_timer = None
+        self._last_move_pos = None
 
     @property
     def in_progress(self) -> bool:
@@ -3954,6 +3959,10 @@ class FreeDrawTool(Tool):
     def reset(self) -> None:
         self._points = []
         self._drawing = False
+        self._last_move_pos = None
+        if getattr(self, '_hold_timer', None) is not None:
+            self._hold_timer.stop()
+            self._hold_timer = None
 
     def set_draw_style(self, color: str, width: float) -> None:
         self._draw_color = color
@@ -3962,10 +3971,15 @@ class FreeDrawTool(Tool):
     def on_press(self, p: QPointF) -> None:
         self._points = [QPointF(p)]
         self._drawing = True
+        self._last_move_pos = QPointF(p)
 
     def on_move(self, p: QPointF) -> None:
         if self._drawing:
             self._points.append(QPointF(p))
+            self._last_move_pos = QPointF(p)
+            # Reset hold timer on movement
+            if self._hold_timer is not None:
+                self._hold_timer.stop()
 
     def on_release(self, p: QPointF) -> None:
         if not self._drawing:
@@ -3975,17 +3989,91 @@ class FreeDrawTool(Tool):
         if len(self._points) < 2:
             self.reset()
             return
-        path = QPainterPath()
-        path.moveTo(self._points[0])
-        for pt in self._points[1:]:
-            path.lineTo(pt)
-        item = QGraphicsPathItem(path)
+        self._commit_stroke(corrected=False)
+
+    def on_double_click(self, p: QPointF) -> None:
+        """Double-click after drawing = re-commit the last freedraw with shape correction."""
+        if self.canvas.document is None:
+            return
+        for layer in self.canvas.document.layers:
+            if layer.name == "draw":
+                items = [i for i in layer.items() if i.data(1) == "freedraw"]
+                if items:
+                    last = items[-1]
+                    # Extract points from the path
+                    if isinstance(last, QGraphicsPathItem):
+                        path = last.path()
+                        pts = [QPointF(path.elementAt(i).x, path.elementAt(i).y)
+                               for i in range(path.elementCount())]
+                        if len(pts) >= 3:
+                            from .shape_recognizer import recognize_shape
+                            shape = recognize_shape(pts)
+                            if shape is not None:
+                                self._points = pts
+                                # Remove the raw stroke
+                                if self.canvas.undo_stack:
+                                    from .commands import DeleteItemsCommand
+                                    self.canvas.undo_stack.beginMacro("Smart correct")
+                                    self.canvas.undo_stack.push(
+                                        DeleteItemsCommand(self.canvas.document, [last]))
+                                self._draw_color = last.pen().color().name()
+                                self._draw_width = last.pen().widthF()
+                                self._commit_stroke(corrected=True)
+                                if self.canvas.undo_stack:
+                                    self.canvas.undo_stack.endMacro()
+                                return
+
+    def _commit_stroke(self, corrected: bool = False) -> None:
+        """Commit the current stroke. If corrected=True, try shape recognition first."""
+        from .shape_recognizer import recognize_shape
+
+        item = None
+        gs = _gs(self.canvas)
+
+        if corrected and len(self._points) >= 3:
+            shape = recognize_shape(self._points)
+            if shape is not None:
+                if shape["type"] == "line":
+                    p1, p2 = shape["p1"], shape["p2"]
+                    # Snap to grid if snap enabled
+                    if getattr(self.canvas, 'snap_enabled', False):
+                        p1 = QPointF(round(p1.x() / gs) * gs, round(p1.y() / gs) * gs)
+                        p2 = QPointF(round(p2.x() / gs) * gs, round(p2.y() / gs) * gs)
+                    item = QGraphicsLineItem(QLineF(p1, p2))
+                elif shape["type"] == "circle":
+                    c, r = shape["center"], shape["radius"]
+                    if getattr(self.canvas, 'snap_enabled', False):
+                        c = QPointF(round(c.x() / gs) * gs, round(c.y() / gs) * gs)
+                        r = round(r / gs) * gs
+                    item = QGraphicsEllipseItem(QRectF(c.x() - r, c.y() - r, r * 2, r * 2))
+                elif shape["type"] == "ellipse":
+                    item = QGraphicsEllipseItem(shape["rect"])
+                elif shape["type"] == "rect":
+                    rect = shape["rect"]
+                    if getattr(self.canvas, 'snap_enabled', False):
+                        x = round(rect.x() / gs) * gs
+                        y = round(rect.y() / gs) * gs
+                        w = round(rect.width() / gs) * gs
+                        h = round(rect.height() / gs) * gs
+                        rect = QRectF(x, y, max(gs, w), max(gs, h))
+                    item = QGraphicsRectItem(rect)
+
+        if item is None:
+            # No correction or no match — smooth the raw path
+            smoothed = self._smooth_points(self._points)
+            path = QPainterPath()
+            path.moveTo(smoothed[0])
+            for pt in smoothed[1:]:
+                path.lineTo(pt)
+            item = QGraphicsPathItem(path)
+
         pen = make_pen(self._draw_color, self._draw_width)
         item.setPen(pen)
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         item.setData(0, {"zip": "", "note": ""})
         item.setData(1, "freedraw")
-        # Route to draw layer if available
+
+        # Route to draw layer
         doc = self.canvas.document
         draw_layer = None
         if doc:
@@ -3999,6 +4087,22 @@ class FreeDrawTool(Tool):
         else:
             self.canvas.add_item(item)
         self.reset()
+
+    def _smooth_points(self, points: list[QPointF]) -> list[QPointF]:
+        """Simple moving-average smoothing."""
+        if len(points) <= self._SMOOTH_FACTOR:
+            return points
+        n = self._SMOOTH_FACTOR
+        smoothed = [points[0]]
+        for i in range(1, len(points) - 1):
+            lo = max(0, i - n // 2)
+            hi = min(len(points), i + n // 2 + 1)
+            window = points[lo:hi]
+            avg_x = sum(p.x() for p in window) / len(window)
+            avg_y = sum(p.y() for p in window) / len(window)
+            smoothed.append(QPointF(avg_x, avg_y))
+        smoothed.append(points[-1])
+        return smoothed
 
     def paint_preview(self, painter: QPainter) -> None:
         if self._drawing and len(self._points) >= 2:
